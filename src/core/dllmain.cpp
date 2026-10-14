@@ -137,6 +137,7 @@
 #include "ribbon_edge_loop.h"
 #include "bone_track_prefetch.h"
 #include "batch_chain_prefetch.h"
+#include "process_top_down.h"
 #include "floor_split_sse2.h"
 #include "frustum_aabb_sse2.h"
 #include "segment_aabb_sse2.h"
@@ -6012,6 +6013,7 @@ static void DumpPeriodicStats(const char* why, bool atProcessExit) {
     STAT_TIME("M2AnimReuse::LogStats", M2AnimReuse::LogStats());
     STAT_TIME("MimallocHighArena::LogStats", MimallocHighArena::LogStats());
     STAT_TIME("HighPlacement::LogStats", HighPlacement::LogStats());
+    STAT_TIME("ProcessTopDown::LogStats", ProcessTopDown::LogStats());
     STAT_TIME("ClientWriteBatch::LogStats", ClientWriteBatch::LogStats());
     STAT_TIME("AabbOverlap::LogStats", AabbOverlap::LogStats());
     STAT_TIME("AabbTransform::LogStats", AabbTransform::LogStats());
@@ -8253,6 +8255,7 @@ static DWORD WINAPI MainThread(LPVOID param) {
     // Before the allocator is configured, so its arena reservations and the
     // pre-warm below are recorded under this tool's name like everyone else's.
     HighPlacement::Init();
+    ProcessTopDown::Init();
 
     ConfigureMimalloc();
     TryEnableLargePages();

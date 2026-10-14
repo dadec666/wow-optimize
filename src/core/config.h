@@ -483,6 +483,10 @@ namespace Config {
         // 0 leaves them where Windows puts them. See high_placement.cpp, Decide().
         bool OptHighPlacementHeapGrowth = true;
         int  HighPlacementMinKB = 1024;
+        // Allocate address space from the top down once the largest free run below 2GB
+        // is under ProcessTopDownBelowMB. One process setting, no hook.
+        bool OptProcessTopDown = false;
+        int  ProcessTopDownBelowMB = 1024;
         // The box-overlap predicate (sub_78F370) that seventeen culling and
         // pick functions call once per scene node per pass. Six x87 compares,
         // each leaving the FPU through fnstsw and a data-dependent branch,

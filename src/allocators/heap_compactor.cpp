@@ -55,6 +55,7 @@ extern "C" void mi_collect(bool force);
 #include "crash_dumper.h"
 #include "perf_diagnostics.h"
 #include "mimalloc_high_arena.h"
+#include "process_top_down.h"
 #include "high_placement.h"
 
 // Largest free virtual address range, measured twice: over everything, and over
@@ -204,6 +205,7 @@ static DWORD WINAPI MonitorThread(LPVOID) {
         SIZE_T largestFree = GetLargestFreeBlock(&largestLow, &lowTotal);
         g_checksPerformed++;
         HighPlacement::NotifyLowHalfFree(largestLow, lowTotal);
+        ProcessTopDown::OnLowHalf(largestLow);
 
         // Published for the report, which used to walk the address space again on
         // the main thread to get the same two numbers. This thread has just paid

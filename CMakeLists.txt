@@ -361,6 +361,8 @@ add_library(wow_optimize SHARED
     src/hooks_subsystems/ui_strata_opt.h
     src/allocators/mimalloc_high_arena.cpp
     src/allocators/high_placement.cpp
+    src/allocators/process_top_down.cpp
+    src/allocators/process_top_down.h
     src/hooks_subsystems/client_write_batch.cpp
     src/hooks_subsystems/render_null_guard.cpp
     src/hooks_subsystems/device_callback_guard.cpp
