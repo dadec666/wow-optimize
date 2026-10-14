@@ -359,7 +359,27 @@ static void ApplyFastNetworkInit(HMODULE hSelf) {
 }
 
 static DWORD WINAPI LoaderThread(LPVOID param) {
-    Sleep(3000);
+    // How long the client is left to start before the optimizer loads. 3000 has
+    // been the value since the proxy existed. The render thread has to make the
+    // client's device through its hook, which a load after the first device cannot
+    // do without a restart and a blank screen, so the delay is a setting.
+    DWORD delayMs = 3000;
+    {
+        char ini[MAX_PATH];
+        if (ProxyFindIni(ini, sizeof(ini))) {
+            // With the render thread wanted there is no delay: its hook has to be in
+            // before the client makes its device. Under Wine it is never used and the
+            // old delay stays.
+            const HMODULE nt = GetModuleHandleA("ntdll.dll");
+            const bool wine = nt && GetProcAddress(nt, "wine_get_version") != NULL;
+            const bool wantsRenderThread =
+                !wine && GetPrivateProfileIntA("Graphics_Sound", "D3d9RenderThread", 1, ini) != 0;
+            const UINT v = GetPrivateProfileIntA("General", "LoaderDelayMs",
+                                                 wantsRenderThread ? 0 : 3000, ini);
+            delayMs = v > 10000 ? 10000 : v;
+        }
+    }
+    if (delayMs) Sleep(delayMs);
 
     if (HostIsOneOfOurs()) return 0;
 
