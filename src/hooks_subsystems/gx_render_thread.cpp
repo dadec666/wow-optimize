@@ -557,29 +557,140 @@ unsigned long g_abToDirect = 0, g_abToQueued = 0, g_abWaitLocks = 0, g_abWaitDra
 // direct needs the ring empty and no buffer lock answered from the arena or a
 // shadow still open - its Unlock would otherwise reach a buffer that was never
 // really locked. A switch that cannot happen yet waits for the next Present.
-void AbLatch() {
-    const bool wantDirect = AbTest::StandAside();
-    if (wantDirect == (g_queueOff != 0)) return;
+// Returns true when the mode is the wanted one afterwards.
+bool SwitchTo(bool wantDirect) {
+    if (wantDirect == (g_queueOff != 0)) return true;
     if (!wantDirect) {
         InterlockedExchange(&g_queueOff, 0);
         ++g_abToQueued;
-        return;
+        return true;
     }
-    if (g_emulatedLocks != 0) { ++g_abWaitLocks; return; }
+    if (g_emulatedLocks != 0) { ++g_abWaitLocks; return false; }
     Drain();
-    if (g_ring.rd != g_ring.wr) { ++g_abWaitDrain; return; }
+    if (g_ring.rd != g_ring.wr) { ++g_abWaitDrain; return false; }
     // Work the render thread left for the main thread during that last queued frame.
     // Direct frames run the state manager's Present hook here, which does its own.
     D3D9StateManager_RunDeferredMainThreadWork();
     InterlockedExchange(&g_queueOff, 1);
     ++g_abToDirect;
+    return true;
+}
+
+void AbLatch() { SwitchTo(AbTest::StandAside()); }
+
+// ---- the governor: keep whichever of the two is faster on this machine ------------------
+// The render thread moves Direct3D work off the main thread (2.2 ms a frame in a
+// raid on prince's machine, 0.24 ms at a login screen) and costs the queueing and a
+// wait at the frame limit. Which is the better trade depends on the scene, the
+// driver and the core count, and nothing in the module could say. So it measures:
+// four stints of kStintMs, direct, queued, direct, queued, in the one session on the
+// one device (the same switch the A/B harness uses), the mean frame time of each
+// pair compared, and the faster mode held for kHoldMs before it looks again. A
+// stint that has a frame over kHitchMs in it (a loading screen, a stall) is thrown
+// away and run again. Frames are timed Present to Present, so under vsync both
+// halves read the display's period and the queued one is kept: the render thread is
+// only abandoned where direct calls are faster in frames per second.
+constexpr double kStintMs = 6000.0;
+constexpr double kHoldMs = 240000.0;
+constexpr double kFirstProbeMs = 45000.0;
+constexpr double kHitchMs = 120.0;
+constexpr double kDirectWinsBy = 0.03;      // direct must be at least this much faster to be chosen
+constexpr uint32_t kMinFrames = 150;
+
+struct Governor {
+    bool     started = false;
+    int      stint = -1;                    // -1 holding, 0..3 probing
+    bool     want = false;                  // the mode wanted now, true = direct
+    bool     stintLive = false;             // the mode switched and the stint is timing
+    double   stintStart = 0.0, nextProbe = 0.0;
+    double   sum[2] = {0.0, 0.0};           // [0] queued [1] direct, ms
+    uint32_t frames[2] = {0, 0};
+    double   curSum = 0.0; uint32_t curFrames = 0; bool curHitch = false;
+    double   lastPresent = 0.0;
+    double   lastQueuedMean = 0.0, lastDirectMean = 0.0;
+    unsigned probes = 0, voided = 0, keptQueued = 0, wentDirect = 0;
+} g_gov;
+
+double NowMs() {
+    static LARGE_INTEGER f = {};
+    if (!f.QuadPart) QueryPerformanceFrequency(&f);
+    LARGE_INTEGER c; QueryPerformanceCounter(&c);
+    return (double)c.QuadPart * 1000.0 / (double)f.QuadPart;
+}
+
+void GovernorOnPresent() {
+    Governor& G = g_gov;
+    const double now = NowMs();
+    if (!G.started) {
+        G.started = true;
+        G.nextProbe = now + kFirstProbeMs;
+        G.lastPresent = now;
+        return;
+    }
+    const double dt = now - G.lastPresent;
+    G.lastPresent = now;
+
+    if (G.stint < 0) {
+        if (now >= G.nextProbe) { G.stint = 0; G.want = true; G.stintLive = false; }
+        else return;
+    }
+    // Wanted mode for this stint: direct, queued, direct, queued.
+    G.want = (G.stint % 2) == 0;
+    if (!SwitchTo(G.want)) return;                 // cannot switch this frame; try the next
+    if (!G.stintLive) {                            // the frame that switched is not timed
+        G.stintLive = true; G.stintStart = now; G.curSum = 0.0; G.curFrames = 0; G.curHitch = false;
+        return;
+    }
+    if (dt > kHitchMs) G.curHitch = true;
+    G.curSum += dt; ++G.curFrames;
+    if (now - G.stintStart < kStintMs) return;
+
+    if (G.curHitch || G.curFrames < kMinFrames) {  // not a measurement; run this stint again
+        ++G.voided;
+        G.stintLive = false;
+        if (G.voided > 12) { G.stint = -1; G.nextProbe = now + kHoldMs; SwitchTo(false); G.voided = 0; }
+        return;
+    }
+    const int idx = G.want ? 1 : 0;
+    G.sum[idx] += G.curSum; G.frames[idx] += G.curFrames;
+    G.stintLive = false;
+    if (++G.stint < 4) return;
+
+    G.lastQueuedMean = G.sum[0] / (double)G.frames[0];
+    G.lastDirectMean = G.sum[1] / (double)G.frames[1];
+    ++G.probes;
+    const bool direct = G.lastDirectMean < G.lastQueuedMean * (1.0 - kDirectWinsBy);
+    if (direct) ++G.wentDirect; else ++G.keptQueued;
+    Log("[GxRT] governor: over %u + %u frames the mean frame was %.3f ms queued and %.3f ms direct; "
+        "%s from here, looking again in %.0f s.",
+        G.frames[0], G.frames[1], G.lastQueuedMean, G.lastDirectMean,
+        direct ? "DIRECT calls" : "the render thread", kHoldMs / 1000.0);
+    G.sum[0] = G.sum[1] = 0.0; G.frames[0] = G.frames[1] = 0;
+    G.stint = -1; G.stintLive = false; G.voided = 0;
+    G.nextProbe = now + kHoldMs;
+    G.want = direct;                               // held until the next probe
+    SwitchTo(direct);
+}
+
+// Applied every Present when no probe is running, to keep a switch that had to
+// wait for an open lock or a drain.
+void GovernorHold() {
+    Governor& G = g_gov;
+    if (G.stint < 0 && G.started) SwitchTo(G.want);
 }
 
 HRESULT __stdcall T_Present(IDirect3DDevice9* d, const RECT* src, const RECT* dst, HWND wnd, const RGNDATA* dirty) {
     // Before the Live() test: a frame that switches decides here which path it takes,
     // so the frame boundary runs exactly once - inside this function when queued, in
     // the state manager's Present hook on this thread when direct.
-    if (g_abSubject && Owned()) AbLatch();
+    if (Owned()) {
+        if (g_abSubject) {
+            AbLatch();
+        } else {
+            GovernorOnPresent();
+            GovernorHold();
+        }
+    }
     if (!Live()) return O<F_Present>(S_Present)(d, src, dst, wnd, dirty);
     if (dirty) {                                    // a dirty region is not carried; do this one here
         ++g_presentFallbacks;
@@ -1234,9 +1345,19 @@ void LogStats() {
             "an open buffer lock and %lu for the ring to drain. OFF here is the same MULTITHREADED device called "
             "directly, not the client without this module. The frame times of each half are in the AbTest report.",
             g_abToDirect, g_abToQueued, g_abWaitLocks, g_abWaitDrain);
-    } else if (AbTest::Running()) {
-        Log("[GxRT]   not the A/B subject, so the A/B halves both had the render thread. "
-            "AbTestSubject=D3d9RenderThread measures it.");
+    } else {
+        const Governor& G = g_gov;
+        if (G.probes == 0) {
+            Log("[GxRT]   governor: no probe has finished yet (the first runs %.0f s after the device is up, "
+                "%u stint(s) voided by a hitch or too few frames so far).", kFirstProbeMs / 1000.0, G.voided);
+        } else {
+            Log("[GxRT]   governor: %u probe(s), %u kept the render thread and %u went to direct calls; the last "
+                "read %.3f ms a frame queued against %.3f direct. Now %s.", G.probes, G.keptQueued, G.wentDirect,
+                G.lastQueuedMean, G.lastDirectMean, g_queueOff ? "DIRECT" : "queued");
+        }
+        if (AbTest::Running())
+            Log("[GxRT]   not the A/B subject, so the A/B halves both ran the governor's mode. "
+                "AbTestSubject=D3d9RenderThread measures it by the harness's own stints instead.");
     }
 }
 
