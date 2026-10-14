@@ -485,7 +485,7 @@ namespace Config {
         int  HighPlacementMinKB = 1024;
         // Allocate address space from the top down once the largest free run below 2GB
         // is under ProcessTopDownBelowMB. One process setting, no hook.
-        bool OptProcessTopDown = false;
+        bool OptProcessTopDown = true;
         int  ProcessTopDownBelowMB = 1024;
         // The box-overlap predicate (sub_78F370) that seventeen culling and
         // pick functions call once per scene node per pass. Six x87 compares,

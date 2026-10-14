@@ -819,7 +819,7 @@ static const int kBoolSettingCount = (int)(sizeof(kBoolSettings) / sizeof(kBoolS
         g_settings.OptHighPlacementClient  = GetPrivateProfileIntA("General", "HighPlacementClient", 0, iniPath.c_str()) != 0;
         g_settings.OptHighPlacementHeapGrowth = GetPrivateProfileIntA("General", "HighPlacementHeapGrowth", 1, iniPath.c_str()) != 0;
         g_settings.HighPlacementMinKB      = GetPrivateProfileIntA("General", "HighPlacementMinKB", 1024, iniPath.c_str());
-        g_settings.OptProcessTopDown       = GetPrivateProfileIntA("General", "ProcessTopDown", 0, iniPath.c_str()) != 0;
+        g_settings.OptProcessTopDown       = GetPrivateProfileIntA("General", "ProcessTopDown", 1, iniPath.c_str()) != 0;
         g_settings.ProcessTopDownBelowMB   = GetPrivateProfileIntA("General", "ProcessTopDownBelowMB", 1024, iniPath.c_str());
         if (g_settings.ProcessTopDownBelowMB < 64)   g_settings.ProcessTopDownBelowMB = 64;
         if (g_settings.ProcessTopDownBelowMB > 2048) g_settings.ProcessTopDownBelowMB = 2048;
