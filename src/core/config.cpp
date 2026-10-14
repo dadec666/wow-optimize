@@ -849,7 +849,7 @@ static const int kBoolSettingCount = (int)(sizeof(kBoolSettings) / sizeof(kBoolS
         g_settings.OptShadowCascadeHold = GetPrivateProfileIntA("Graphics_Sound", "ShadowCascadeHold", 0, iniPath.c_str()) != 0;
         g_settings.OptMatrixVectorSse2  = GetPrivateProfileIntA("Graphics_Sound", "MatrixVectorSse2", 0, iniPath.c_str()) != 0;
         g_settings.OptWorldStateCoalesce  = GetPrivateProfileIntA("Graphics_Sound", "WorldStateCoalesce", 0, iniPath.c_str()) != 0;
-        g_settings.OptD3d9RenderThread    = GetPrivateProfileIntA("Graphics_Sound", "D3d9RenderThread", 0, iniPath.c_str()) != 0;
+        g_settings.OptD3d9RenderThread    = GetPrivateProfileIntA("Graphics_Sound", "D3d9RenderThread", 1, iniPath.c_str()) != 0;
         // Skipping a SetRenderState that changes nothing has nothing to do with
         // running under a translation layer, so it has its own key. An absent key
         // inherits the pair it used to be gated on, which keeps an existing ini

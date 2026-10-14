@@ -594,7 +594,7 @@ namespace Config {
         // search switch, so nobody could turn it off on purpose either.
         bool OptMatrixVectorSse2 = false;
         bool OptWorldStateCoalesce = false;
-        bool OptD3d9RenderThread = false;
+        bool OptD3d9RenderThread = true;
         // Redundant D3D9 state removal. Inherits from the pair it used to hang
         // off, so writing no key changes nothing; see Config::Load.
         bool OptRenderStateDedup = false;
