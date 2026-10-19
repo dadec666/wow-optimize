@@ -71,9 +71,9 @@ MH_STATUS WO_EnableHook(void* target);
 
 static constexpr uintptr_t kGetThis = 0x004A81B0;
 
-// The taint cell holds a pointer; the current taint is written through it.
 // The client's dword_D4139C, D413A0 and D413A4.
-static constexpr uintptr_t kTaintCellPtr    = 0x00D4139C;
+// 0x00D4139C is the current taint cell itself (holding const char* addon name or 0).
+static constexpr uintptr_t kTaintCell       = 0x00D4139C;
 static constexpr uintptr_t kTaintEnabled    = 0x00D413A0;
 static constexpr uintptr_t kTaintSuppressed = 0x00D413A4;
 
@@ -148,8 +148,7 @@ static uint32_t ComputeThis(uint32_t L, int wantedType) {
     // The taint move lua_rawgeti performs, reproduced exactly.
     uint32_t vt = v[3];
     if (vt && *(const uint32_t*)kTaintEnabled && !*(const uint32_t*)kTaintSuppressed) {
-        uint32_t* cell = *(uint32_t**)kTaintCellPtr;
-        if (cell) *cell = vt;
+        *(uint32_t*)kTaintCell = vt;
     }
 
     // The virtual type check still runs; only its error path is declined.
