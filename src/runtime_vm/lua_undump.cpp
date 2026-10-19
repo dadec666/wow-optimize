@@ -105,7 +105,7 @@ namespace {
 constexpr uintptr_t kLuaFNewProto  = 0x0085CF40;
 constexpr uintptr_t kLuaMRealloc   = 0x0085D6F0;
 constexpr uintptr_t kLuaSNewLStr   = 0x00856C80;
-constexpr uintptr_t kTaintCurrent  = 0x00D4139C;  // holds a pointer to it
+constexpr uintptr_t kTaintCurrent  = 0x00D4139C;  // dword_D4139C, the taint context cell
 
 typedef void* (__cdecl* luaF_newproto_fn)(void* L);
 typedef void* (__cdecl* luaM_realloc_fn)(void* L, void* block, size_t osize, size_t nsize);
@@ -193,9 +193,7 @@ inline void WR8 (void* p, unsigned off, uint8_t  v) { *(uint8_t*) ((char*)p + of
 inline void WRP (void* p, unsigned off, void*    v) { *(void**)   ((char*)p + off) = v; }
 
 uint32_t CurrentTaint() {
-    void* slot = *(void* const*)kTaintCurrent;
-    if (!slot) return 0;
-    return *(const uint32_t*)slot;
+    return *(const uint32_t*)kTaintCurrent;
 }
 
 // --- Reading ----------------------------------------------------------------
