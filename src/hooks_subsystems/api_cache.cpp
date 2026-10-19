@@ -151,9 +151,11 @@ static ScriptFunc_fn orig_GetItemInfo = (ScriptFunc_fn)0x00516C60;
 static constexpr int CACHE_SIZE    = 4096;
 static constexpr int CACHE_MASK    = CACHE_SIZE - 1;
 
-// GetItemInfo ends in `return 11` on every success path and `return 0` when
-// sub_67CA30 has no record for the item yet.
-static constexpr int ITEM_RETVALS  = 11;
+// Stock 3.3.5a GetItemInfo returns 11 values. Custom clients (such as Sirus,
+// Cataclysm/MoP backports) extend GetItemInfo with up to 17 return values
+// (item class/subclass IDs, bind types, expansion, item set ID, crafting reagent flag).
+// Sizing to 18 covers all known client variants without truncating custom UI return values.
+static constexpr int ITEM_RETVALS  = 18;
 
 // Item links run to about 130 characters at their longest - full enchant, gem
 // and suffix fields plus a long name. A key that does not fit is not cached
@@ -340,13 +342,14 @@ static inline void ReplayItemResults(lua_State* L, const ItemCacheEntry* e) {
     }
 }
 
-static lua_State* g_cacheLuaState = nullptr;
+static uintptr_t g_cacheGlobalState = 0;
 
 // Hooked_GetItemInfo
 
 static int __cdecl Hooked_GetItemInfo(lua_State* L) {
-    if (L != g_cacheLuaState) {
-        g_cacheLuaState = L;
+    uintptr_t g = L ? *(uintptr_t*)((uintptr_t)L + 0x14) : 0; // L->l_G
+    if (g != g_cacheGlobalState) {
+        g_cacheGlobalState = g;
         ApiCache::ClearCache();
     }
 
