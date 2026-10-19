@@ -406,6 +406,8 @@ add_library(wow_optimize SHARED
     src/runtime_vm/lua_gc_governor.h
     src/hooks_subsystems/sound_mixer_opt.cpp
     src/hooks_subsystems/sound_mixer_opt.h
+    src/hooks_subsystems/sound_group_guard.cpp
+    src/hooks_subsystems/sound_group_guard.h
     src/hooks_subsystems/async_tex_loader.cpp
     src/hooks_subsystems/async_tex_loader.h
     src/hooks_subsystems/adaptive_farclip.cpp

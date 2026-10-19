@@ -188,6 +188,7 @@
 #include "hooks_subsystems/mouse_clip_release.h"
 #include "hooks_subsystems/combat_log_filter.h"
 #include "hooks_subsystems/sound_volume_limit.h"
+#include "hooks_subsystems/sound_group_guard.h"
 #include "hooks_subsystems/terrain_height_cache.h"
 
 #include "hooks_subsystems/texture_unload_delay.h"
@@ -6030,6 +6031,7 @@ static void DumpPeriodicStats(const char* why, bool atProcessExit) {
     STAT_TIME("M2SkinProjFast::LogStats", M2SkinProjFast::LogStats());
     STAT_TIME("SStrHashFast::LogStats", SStrHashFast::LogStats());
     STAT_TIME("ReverbClearFast::LogStats", ReverbClearFast::LogStats());
+    STAT_TIME("SoundGroupGuard::LogStats", SoundGroupGuard::LogStats());
     STAT_TIME("UILayoutRectFast::LogStats", UILayoutRectFast::LogStats());
     STAT_TIME("UIStrataOverlapFast::LogStats", UIStrataOverlapFast::LogStats());
     STAT_TIME("ParticleIntegrateFast::LogStats", ParticleIntegrateFast::LogStats());
@@ -8830,6 +8832,7 @@ static DWORD WINAPI MainThread(LPVOID param) {
     M2SkinProjFast::Init();
     SStrHashFast::Init();
     ReverbClearFast::Init();
+    SoundGroupGuard::Init();
     UILayoutRectFast::Init();
     UIStrataOverlapFast::Init();
     ParticleIntegrateFast::Init();
@@ -11885,6 +11888,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID reserved) {
             M2SkinProjFast::Shutdown();
             SStrHashFast::Shutdown();
             ReverbClearFast::Shutdown();
+            SoundGroupGuard::Shutdown();
             UILayoutRectFast::Shutdown();
             UIStrataOverlapFast::Shutdown();
             ParticleIntegrateFast::Shutdown();
