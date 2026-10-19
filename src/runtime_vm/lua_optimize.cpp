@@ -1412,16 +1412,6 @@ static void UpdateLuaStats(lua_State* L) {
     Api.lua_settop(L, topBefore);
 }
 
-// Metatable __index stub for GMChatFrame.lastGM.
-// Returns "" for all keys, preventing nil-concatenation crash at UIParent.lua:476.
-static int __cdecl gm_index_stub(lua_State* L) {
-    if (Api.lua_pushstring) {
-        Api.lua_pushstring(L, "");
-        return 1;
-    }
-    return 0;
-}
-
 static void RegisterLuaFunction(lua_State* L, const char* name, void* fn) {
     if (!Api.lua_pushcclosure || !Api.lua_setfield) return;
 
@@ -1684,56 +1674,6 @@ static void __cdecl Hooked_FrameScript_Execute(const char* code, const char* sou
                 // either direction would be a claim nothing has checked; the
                 // addon reads unset as "not reported", and PublishGcActive
                 // writes the real value when the swap completes.
-                if (Api.FrameScript_Execute) {
-                    Api.FrameScript_Execute(
-                        "local f=CreateFrame'Frame' "
-                        "f:RegisterEvent'VARIABLES_LOADED' "
-                        "f:RegisterEvent'PLAYER_LOGIN' "
-                        "f:RegisterEvent'PLAYER_ENTERING_WORLD' "
-                        "f:SetScript('OnEvent', function() "
-                        "  local gm = GMChatFrame "
-                        "  if gm then "
-                        "    if type(gm.lastGM) ~= 'table' then gm.lastGM = {} end "
-                        "    setmetatable(gm.lastGM, {__index = function() return '' end}) "
-                        "  end "
-                        "end) "
-                        "local mt = getmetatable(CreateFrame('Frame')) "
-                        "if mt and mt.__index and mt.__index.SetScript then "
-                        "  local orig = mt.__index.SetScript "
-                        "  local list = {details=true, recount=true, skada=true, auctionator=true, auctioneer=true, questhelper=true, gatherer=true, carbonite=true, postal=true, bagnon=true, arkinventory=true, atlasloot=true, overachiever=true, wim=true, chatter=true, prat=true} "
-                        "  mt.__index.SetScript = function(self, st, h) "
-                        "    if st == 'OnUpdate' and h then "
-                        "      local n = self:GetName() "
-                        "      if n then "
-                        "        n = string.lower(n) "
-                        "        for k in pairs(list) do "
-                        "          if string.find(n, k, 1, true) then "
-                        "            local last = 0 "
-                        "            orig(self, st, function(self, el) "
-                        "              local now = GetTime() "
-                        "              local fps = GetFramerate() "
-                        "              local interval = 0.0 "
-                        "              if fps < 30 then "
-                        "                interval = 0.1 "
-                        "              elseif fps < 55 then "
-                        "                interval = 0.05 "
-                        "              end "
-                        "              if now - last >= interval then "
-                        "                last = now "
-                        "                h(self, el) "
-                        "              end "
-                        "            end) "
-                        "            return "
-                        "          end "
-                        "        end "
-                        "      end "
-                        "    end "
-                        "    orig(self, st, h) "
-                        "  end "
-                        "end",
-                        "wow_optimize_gm_fix", 0);
-                }
-                
                 Log("[LuaOpt] FrameScript hook: injected DLL markers before addon load on L=0x%08X",
                     (unsigned)(uintptr_t)currentL);
             }
