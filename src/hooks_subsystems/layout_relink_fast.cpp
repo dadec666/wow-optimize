@@ -396,7 +396,9 @@ void RunNotFoundTail(uint32_t* result, uintptr_t self) {
             v16 = (uint32_t*)(uintptr_t)(v15 & 0xFFFFFFFEu);
         }
         // 4897ec  mov [ebx],esi
-        *v16 = v14;
+        if (v16 && (uintptr_t)v16 >= 0x1000) {
+            *v16 = v14;
+        }
         // 4897ee  mov edx,[eax] / mov esi,[eax+4] / mov [edx+4],esi
         //         (both re-read, exactly as the original does)
         uint32_t edx = result[0];
