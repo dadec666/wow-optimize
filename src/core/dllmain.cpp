@@ -141,6 +141,7 @@
 #include "floor_split_sse2.h"
 #include "frustum_aabb_sse2.h"
 #include "segment_aabb_sse2.h"
+#include "wmo_group_bounds_fast.h"
 #include "world_vis_traverse_sse2.h"
 #include "ui_strata_opt.h"
 #include "runtime_vm/lua_hget_dispatch.h"
@@ -6099,6 +6100,7 @@ static void DumpPeriodicStats(const char* why, bool atProcessExit) {
     STAT_TIME("SkyCloudTexels::LogStats", SkyCloudTexels::LogStats());
     STAT_TIME("FrustumAabb::LogStats", FrustumAabb::LogStats());
     STAT_TIME("SegmentAabb::LogStats", SegmentAabb::LogStats());
+    STAT_TIME("WmoGroupBoundsFast::LogStats", WmoGroupBoundsFast::LogStats());
     STAT_TIME("LuaHGetDispatch::LogStats", LuaHGetDispatch::LogStats());
     STAT_TIME("LuaPoolFast::LogStats", LuaPoolFast::LogStats());
     STAT_TIME("CombatLogFilter::LogStats", CombatLogFilter::LogStats());
@@ -8871,6 +8873,7 @@ static DWORD WINAPI MainThread(LPVOID param) {
     SkyCloudTexels::Init();
     FrustumAabb::Init();
     SegmentAabb::Init();
+    WmoGroupBoundsFast::Init();
     LuaHGetDispatch::Init();
     LuaPoolFast::Init();
     CollisionRayVerts::Init();
@@ -11913,6 +11916,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID reserved) {
             SceneEntityCollect::Shutdown();
             M2BatchCmpSkin::Shutdown();
             CollisionPolyClip::Shutdown();
+            WmoGroupBoundsFast::Shutdown();
             SkyTextureReuse::Shutdown();
             WorldVisTraverse::Shutdown();
             UIStrataOpt::Shutdown();

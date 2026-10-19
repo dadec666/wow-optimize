@@ -283,6 +283,7 @@ static const BoolSetting kBoolSettings[] = {
     { "Graphics_Sound", "CollisionSegmentLeaf", &Settings::OptCollisionSegmentLeaf },
     { "General", "ServerSyncCompat", &Settings::OptServerSyncCompat },
     { "Graphics_Sound", "SoundGroupGuard", &Settings::OptSoundGroupGuard },
+    { "Graphics_Sound", "WmoGroupBounds", &Settings::OptWmoGroupBounds },
 };
 
 static const int kBoolSettingCount = (int)(sizeof(kBoolSettings) / sizeof(kBoolSettings[0]));
@@ -961,6 +962,7 @@ static const int kBoolSettingCount = (int)(sizeof(kBoolSettings) / sizeof(kBoolS
         g_settings.OptCollisionSegmentLeaf = GetPrivateProfileIntA("Graphics_Sound", "CollisionSegmentLeaf", 0, iniPath.c_str()) != 0;
         g_settings.OptServerSyncCompat     = GetPrivateProfileIntA("General", "ServerSyncCompat", 0, iniPath.c_str()) != 0;
         g_settings.OptSoundGroupGuard      = GetPrivateProfileIntA("Graphics_Sound", "SoundGroupGuard", 0, iniPath.c_str()) != 0;
+        g_settings.OptWmoGroupBounds       = GetPrivateProfileIntA("Graphics_Sound", "WmoGroupBounds", 0, iniPath.c_str()) != 0;
     }
 }
 

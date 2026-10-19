@@ -763,6 +763,7 @@ namespace Config {
         bool OptCollisionSegmentLeaf = false;
         bool OptServerSyncCompat = false;
         bool OptSoundGroupGuard = false;
+        bool OptWmoGroupBounds = false;
     };
 
     extern Settings g_settings;
