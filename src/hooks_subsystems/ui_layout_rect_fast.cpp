@@ -116,13 +116,13 @@ static inline bool Client_RectEqual(const float* new_rect, const float* old_rect
 }
 
 __declspec(safebuffers) static int Fast_UpdateLayoutRect(void* thisPtr) {
-    float new_rect[4];
+    float new_rect[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
     int res = Client_Sub4893C0(thisPtr, new_rect);
     char* base = reinterpret_cast<char*>(thisPtr);
     volatile uint32_t* pFlags = reinterpret_cast<volatile uint32_t*>(base + 0x40);
 
     if (!res) {
-        *pFlags = (*pFlags & ~0x100u) | 0x800u;
+        *pFlags = (*pFlags & 0xFFFFF6FFu) | 0x800u;
         return 0;
     }
 
@@ -174,10 +174,10 @@ __declspec(safebuffers) static int __fastcall Hook_UpdateLayoutRect(void* thisPt
         const uint32_t orig_flags = *pFlags;
         const float* old_rect = reinterpret_cast<const float*>(base + 0x44);
 
-        float new_rect[4];
+        float new_rect[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
         int res = Client_Sub4893C0(thisPtr, new_rect);
         if (!res) {
-            *pFlags = (orig_flags & ~0x100u) | 0x800u;
+            *pFlags = (orig_flags & 0xFFFFF6FFu) | 0x800u;
             return 0;
         }
 
