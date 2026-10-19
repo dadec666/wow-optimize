@@ -1048,11 +1048,44 @@ HRESULT __stdcall Hook_CreateDevice(IDirect3D9* self, UINT adapter, D3DDEVTYPE t
 bool NativeRuntimeLoaded() {
     HMODULE m = GetModuleHandleW(L"d3d9.dll");
     if (!m) return false;
-    wchar_t mod[MAX_PATH] = {}, sys[MAX_PATH] = {};
+    wchar_t mod[MAX_PATH] = {};
     if (!GetModuleFileNameW(m, mod, MAX_PATH)) return false;
-    const UINT n = GetSystemDirectoryW(sys, MAX_PATH);
-    if (n == 0 || n >= MAX_PATH) return false;
-    return _wcsnicmp(mod, sys, n) == 0 && mod[n] == L'\\';
+
+    // Any d3d9.dll residing under the Windows directory (System32, SysWOW64,
+    // WinSxS) is Windows' own Direct3D 9 runtime. GetSystemDirectoryW returns
+    // System32 even in a 32-bit process on 64-bit Windows where GetModuleFileNameW
+    // returns SysWOW64\d3d9.dll, so comparing against GetSystemDirectoryW alone
+    // missed native d3d9 on WOW64 and let the render thread start there.
+    wchar_t win[MAX_PATH] = {};
+    const UINT wn = GetWindowsDirectoryW(win, MAX_PATH);
+    if (wn > 0 && wn < MAX_PATH) {
+        if (_wcsnicmp(mod, win, wn) == 0 && (mod[wn] == L'\\' || mod[wn] == L'/')) {
+            return true;
+        }
+    }
+
+    wchar_t sys[MAX_PATH] = {};
+    const UINT sn = GetSystemDirectoryW(sys, MAX_PATH);
+    if (sn > 0 && sn < MAX_PATH) {
+        if (_wcsnicmp(mod, sys, sn) == 0 && (mod[sn] == L'\\' || mod[sn] == L'/')) {
+            return true;
+        }
+    }
+
+    typedef UINT (WINAPI *pfnGetSystemWow64DirectoryW)(LPWSTR, UINT);
+    static auto pGetSystemWow64DirectoryW = (pfnGetSystemWow64DirectoryW)GetProcAddress(
+        GetModuleHandleW(L"kernel32.dll"), "GetSystemWow64DirectoryW");
+    if (pGetSystemWow64DirectoryW) {
+        wchar_t wow[MAX_PATH] = {};
+        const UINT won = pGetSystemWow64DirectoryW(wow, MAX_PATH);
+        if (won > 0 && won < MAX_PATH) {
+            if (_wcsnicmp(mod, wow, won) == 0 && (mod[won] == L'\\' || mod[won] == L'/')) {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 bool g_nativeRefused = false;
