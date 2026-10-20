@@ -189,8 +189,10 @@ size_t   g_sRgbaN = 0, g_sCovN = 0, g_sNoiseN = 0;
 
 bool g_installed = false;
 bool g_dead = false;
+bool g_armed = false;
 unsigned long long g_calls = 0;
 unsigned long g_proven = 0;
+unsigned long g_armedPasses = 0;
 unsigned long g_declined = 0;
 unsigned g_mismatches = 0;
 
@@ -244,7 +246,7 @@ struct Oct {
 // ---------------------------------------------------------------------------
 // The loops themselves.
 // ---------------------------------------------------------------------------
-void Generate(const Snap& s, const Light& L,
+__declspec(safebuffers) void Generate(const Snap& s, const Light& L,
               uint8_t* rgba, uint8_t* cov, float* noise) {
     Oct oct[kMaxOct];
     const uint32_t n = s.octaves;
@@ -398,10 +400,10 @@ __declspec(noinline) void Retire(const char* what, uint32_t row, uint32_t col,
 
 bool Wanted() {
     return Config::g_settings.OptSkyCloudTexels && g_installed && !g_dead &&
-           g_proven < kProve;
+           (!g_armed || ((unsigned long)g_calls & 127) == 0);
 }
 
-void Before(void* self) {
+__declspec(safebuffers) void Before(void* self) {
     g_snapValid = false;
     if (!Wanted() || !self) return;
 
@@ -457,7 +459,7 @@ void Before(void* self) {
     g_snapSeq = g_lightSeq;
 }
 
-void After(void* self) {
+__declspec(safebuffers) void After(void* self) {
     if (!g_snapValid || !self) return;
     g_snapValid = false;
     // The build calls sub_7EFAE0 exactly once, right before the loops. Anything
@@ -496,16 +498,81 @@ void After(void* self) {
         }
     }
     ++g_proven;
-    if (g_proven == kProve)
-        Log("[SkyCloudTexels] %lu pass(es) reproduced byte for byte, including the "
-            "noise row. The transcription is the client's arithmetic on this "
-            "machine. Nothing further runs this session.", g_proven);
+    if (!g_armed && g_proven >= kProve) {
+        g_armed = true;
+        Log("[SkyCloudTexels] ARMED: %lu pass(es) reproduced byte for byte, including "
+            "the noise row. Accelerated generation path active.", g_proven);
+    }
+}
+
+bool IsArmed() {
+    return Config::g_settings.OptSkyCloudTexels && g_installed && !g_dead && g_armed;
+}
+
+bool IsCheckPass() {
+    return ((unsigned long)g_calls & 127) == 0;
+}
+
+__declspec(safebuffers) void BuildArmed(void* self, uint8_t densByte) {
+    if (!self || g_dead) return;
+
+    float h[3], dir[3], amb[3], toL[3], str = 1.0f;
+    if (g_origLight) {
+        g_origLight(self, nullptr, h, dir, amb, toL, &str);
+        memcpy(g_light.height,  h, 12);
+        memcpy(g_light.direct,  dir, 12);
+        memcpy(g_light.ambient, amb, 12);
+        memcpy(g_light.toLight, toL, 12);
+        g_light.strength = str;
+        ++g_lightSeq;
+    } else {
+        return;
+    }
+
+    Snap s;
+    s.rowsPass = RD32(self, kF_rowsPass);
+    s.nextRow  = RD32(self, kF_nextRow);
+    s.size     = RD32(self, kF_size);
+    s.shift    = RD32(self, kF_shift);
+    s.octaves  = RD32(self, kF_octaves);
+    s.phase    = RD16(self, kF_phase);
+    if (RD8(self, kF_rebuildAll)) { s.nextRow = 0; s.rowsPass = s.size; }
+
+    const uint32_t tableIdx = RD8(self, kF_tableIdx);
+    if (s.octaves == 0 || s.octaves > kMaxOct || s.size == 0 || s.size > kMaxSize ||
+        s.shift < 7 || s.shift > kMaxShift || s.size > (1u << s.shift) ||
+        s.rowsPass == 0 || s.nextRow + s.rowsPass > s.size || tableIdx > 31) {
+        return;
+    }
+    s.stride = 1u << s.shift;
+    s.densByte = densByte;
+    for (uint32_t i = 0; i < s.octaves; ++i)
+        s.freq[i] = *(const uint16_t*)(kFreqBase + 10 * tableIdx + 2 * i);
+
+    s.rgba  = (uint8_t*)(uintptr_t)RD32(self, kF_rgba);
+    s.cov   = (uint8_t*)(uintptr_t)RD32(self, kF_coverage);
+    s.noise = (float*)(uintptr_t)RD32(self, kF_noiseRow);
+    if (!s.rgba || !s.cov || !s.noise) return;
+
+    Generate(s, g_light, s.rgba, s.cov, s.noise);
+    ++g_armedPasses;
+    ++g_calls;
 }
 
 // ---------------------------------------------------------------------------
 
 bool Init() {
     if (!Config::g_settings.OptSkyCloudTexels) return true;
+
+    const unsigned char kExpectedLightPrologue[16] = {
+        0x55, 0x8B, 0xEC, 0xD9, 0x05, 0xA4, 0x1C, 0xA4,
+        0x00, 0x83, 0xEC, 0x30, 0xD9, 0x05, 0x04, 0x8B
+    };
+    if (memcmp((const void*)kLightParams, kExpectedLightPrologue, sizeof(kExpectedLightPrologue)) != 0) {
+        Log("[SkyCloudTexels] NOT active: the bytes at 0x%08X do not match expected prologue.",
+            (unsigned)kLightParams);
+        return false;
+    }
 
     if (!WowOpt_ClientPatchAllowed((const void*)kLightParams)) {
         Log("[SkyCloudTexels] NOT active: No Client Patches is on, and the light "
@@ -571,12 +638,13 @@ void LogStats() {
             "it.", g_calls, g_proven);
         return;
     }
-    Log("[SkyCloudTexels] %llu pass(es) compared, %lu agreed byte for byte, %lu "
-        "handed back for a shape outside what this reads. Plain counters, lower "
-        "bounds.", g_calls, g_proven, g_declined);
-    if (g_proven < kProve)
-        Log("[SkyCloudTexels]   %lu of %lu still to go before this stops working.",
+    Log("[SkyCloudTexels] %llu pass(es) total (%lu armed fast, %lu proven byte for byte, "
+        "%lu handed back). Plain counters, lower bounds.",
+        g_calls, g_armedPasses, g_proven, g_declined);
+    if (!g_armed) {
+        Log("[SkyCloudTexels]   %lu of %lu still to go before arming.",
             g_proven, kProve);
+    }
 }
 
 }  // namespace SkyCloudTexels

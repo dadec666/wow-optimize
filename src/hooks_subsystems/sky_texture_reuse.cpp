@@ -393,7 +393,19 @@ void ApplyBook(void* self, const Book& b) {
 // The client's own build, timed, with the texel comparison bracketing it. Every
 // path that reaches the loops goes through here so the milliseconds and the
 // comparison both count the same passes.
-void RunClientBuild(void* self, void* edx) {
+void RunClientBuild(void* self, void* edx, const Book* book = nullptr) {
+    if (SkyCloudTexels::IsArmed() && book && !SkyCloudTexels::IsCheckPass()) {
+        LARGE_INTEGER tA, tB;
+        QueryPerformanceCounter(&tA);
+        SkyCloudTexels::BuildArmed(self, book->densByte);
+        ApplyBook(self, *book);
+        QueryPerformanceCounter(&tB);
+        g_buildTicks += tB.QuadPart - tA.QuadPart;
+        ++g_buildTimed;
+        ++g_built;
+        return;
+    }
+
     SkyCloudTexels::Before(self);
     LARGE_INTEGER tA, tB;
     QueryPerformanceCounter(&tA);
@@ -408,12 +420,7 @@ void RunClientBuild(void* self, void* edx) {
 void __fastcall Detour(void* self, void* edx) {
     ++g_calls;
     if (g_dead || !self) { g_orig(self, edx); return; }
-    if (!Config::g_settings.OptSkyTextureReuse) {
-        // Only the texel comparison wanted this hook. Nothing is remembered and
-        // nothing is skipped; the client builds every pass.
-        RunClientBuild(self, edx);
-        return;
-    }
+
     if (g_owner == 0) g_owner = GetCurrentThreadId();
     if (GetCurrentThreadId() != g_owner) { ++g_odd; g_orig(self, edx); return; }
 
@@ -438,6 +445,12 @@ void __fastcall Detour(void* self, void* edx) {
     if (firstRow + rows > size) { ++g_odd; g_orig(self, edx); return; }
     BookEnd(self, &book, firstRow, rows);
 
+    if (!Config::g_settings.OptSkyTextureReuse) {
+        // Texture reuse is disabled; run accelerated cloud texel generation or client.
+        RunClientBuild(self, edx, &book);
+        return;
+    }
+
     const Key key = MakeKey(self, firstRow, rows, book.densByte);
     Slot* slot = FindSlot(firstRow);
     const bool repeat = slot && slot->hash != 0 && slot->key == key;
@@ -454,7 +467,7 @@ void __fastcall Detour(void* self, void* edx) {
     }
 
     const uint64_t before = repeat ? HashRows(self, firstRow, rows) : 0;
-    RunClientBuild(self, edx);
+    RunClientBuild(self, edx, &book);
 
     if (!BookMatches(self, book)) {
         Retire("the fields the function leaves behind are not what this predicted");

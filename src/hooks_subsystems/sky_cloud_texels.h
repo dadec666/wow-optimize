@@ -15,4 +15,8 @@ void LogStats();
 bool Wanted();
 void Before(void* self);
 void After(void* self);
+
+bool IsArmed();
+bool IsCheckPass();
+void BuildArmed(void* self, uint8_t densByte);
 }
