@@ -194,10 +194,77 @@ __declspec(naked) static void Hooked_4B6550() {
     }
 }
 
+// ----------------------------------------------------------------------------
+// WorldFrame HandleSpriteTrack guard (sub_4F5980 @ 0x004F5980)
+//
+// In stock 3.3.5a build 12340, CGWorldFrame::HandleSpriteTrack is a __thiscall
+// method invoked by sub_4F66C0, sub_4F8190, and sub_4FA040 during frame rendering
+// and scene target/sprite updates.
+//
+// When third-party libraries (such as AwesomeWotlkLib around sub_4F66C0) detour
+// frame tracking, ECX can be clobbered or passed an uninitialized / invalid pointer
+// (e.g. ECX = 8 [typeMask] or ECX = 0x10787 [player GUID low-part]).
+// sub_4F5980 blindly loads ESI = ECX and executes:
+//     mov eax, [esi+2C8h]  (crash 0x004F598D if read access violation)
+//     ...
+//     mov [esi+2C8h], edi  (crash 0x004F59C8 if write access violation)
+//
+// Guard:
+// CGWorldFrame is a singleton instance whose canonical address is stored at
+// s_worldFrame (0x00B7436C). If ECX is wild (< 0x10000 or >= 0xFFFE0000) or does
+// not match s_worldFrame, we restore ECX to s_worldFrame. If s_worldFrame is null,
+// we safely return 0 with ret 8. Pure naked ASM, zero /GS cookies, zero SEH.
+// ----------------------------------------------------------------------------
+
+static constexpr uintptr_t kTarget4F5980 = 0x004F5980;
+static const unsigned char kExpectedPrologue4F5980[8] = {
+    0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x10, 0x53, 0x8B
+};
+
+static void* g_orig4F5980 = nullptr;
+static volatile LONG g_worldFrameRecovered  = 0;
+static volatile LONG g_worldFrameSuppressed = 0;
+static bool g_guard4F5980Active = false;
+
+__declspec(naked) static void Hooked_4F5980() {
+    __asm {
+        // Validate ecx (this pointer to CGWorldFrame)
+        cmp ecx, 0x10000
+        jb recover_frame
+        cmp ecx, 0xFFFE0000
+        jae recover_frame
+
+        // Check if ecx is already the canonical singleton s_worldFrame (0x00B7436C)
+        mov edx, 0x00B7436C
+        mov eax, dword ptr [edx]
+        test eax, eax
+        jz call_original
+        cmp ecx, eax
+        je call_original
+
+    recover_frame:
+        mov edx, 0x00B7436C
+        mov eax, dword ptr [edx]
+        test eax, eax
+        jz suppress_call
+        mov ecx, eax
+        inc dword ptr [g_worldFrameRecovered]
+        jmp call_original
+
+    suppress_call:
+        inc dword ptr [g_worldFrameSuppressed]
+        xor eax, eax
+        ret 8
+
+    call_original:
+        jmp dword ptr [g_orig4F5980]
+    }
+}
+
 bool InstallRenderNullGuard()
 {
     if (!Config::g_settings.OptRenderNullGuard) {
-        Log("[RenderGuard] DISABLED via configuration - sub_873060 and sub_4B6550 run unguarded");
+        Log("[RenderGuard] DISABLED via configuration - sub_873060, sub_4B6550 and sub_4F5980 run unguarded");
         return true;
     }
 
@@ -235,6 +302,21 @@ bool InstallRenderNullGuard()
             }
         } else {
             Log("[RenderGuard] BAD PROLOGUE at 0x%08X", (unsigned)kTarget4B6550);
+        }
+    }
+
+    void* target4F5980 = (void*)kTarget4F5980;
+    if (WowOpt_ClientPatchAllowed(target4F5980)) {
+        if (memcmp(target4F5980, kExpectedPrologue4F5980, sizeof(kExpectedPrologue4F5980)) == 0) {
+            if (MH_CreateHook(target4F5980, (void*)Hooked_4F5980, (void**)&g_orig4F5980) == MH_OK &&
+                MH_EnableHook(target4F5980) == MH_OK) {
+                g_guard4F5980Active = true;
+                Log("[RenderGuard] WorldFrame HandleSpriteTrack guard ACTIVE on sub_4F5980 @ 0x%08X", (unsigned)kTarget4F5980);
+            } else {
+                Log("[RenderGuard] MH_CreateHook FAILED for 0x%08X", (unsigned)kTarget4F5980);
+            }
+        } else {
+            Log("[RenderGuard] BAD PROLOGUE at 0x%08X", (unsigned)kTarget4F5980);
         }
     }
 
@@ -276,5 +358,11 @@ void RenderNullGuard_LogStats()
         Log("[RenderGuard] %ld invalid AsyncTextureWait calls SUPPRESSED (m_asyncObject wild/0xFFFFFFFF sanitized to null)",
             (long)g_asyncWaitSuppressed);
     }
+
+    if (g_worldFrameRecovered > 0 || g_worldFrameSuppressed > 0) {
+        Log("[RenderGuard] %ld WorldFrame HandleSpriteTrack calls recovered (valid s_worldFrame restored), %ld suppressed",
+            (long)g_worldFrameRecovered, (long)g_worldFrameSuppressed);
+    }
 }
+
 
