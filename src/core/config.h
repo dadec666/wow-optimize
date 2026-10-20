@@ -764,6 +764,7 @@ namespace Config {
         bool OptServerSyncCompat = false;
         bool OptSoundGroupGuard = false;
         bool OptWmoGroupBounds = false;
+        bool OptTextureGetGxTexFast = false;
     };
 
     extern Settings g_settings;

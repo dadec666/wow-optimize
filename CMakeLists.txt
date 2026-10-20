@@ -690,6 +690,8 @@ add_library(wow_optimize SHARED
     src/hooks_subsystems/terrain_height_cache.h
     src/hooks_subsystems/texture_unload_delay.cpp
     src/hooks_subsystems/texture_unload_delay.h
+    src/hooks_subsystems/texture_get_gxtex_fast.cpp
+    src/hooks_subsystems/texture_get_gxtex_fast.h
     src/hooks_subsystems/spell_effect_culling.cpp
     src/hooks_subsystems/spell_effect_culling.h
     src/simd_math/collision_ray_verts_sse2.cpp
