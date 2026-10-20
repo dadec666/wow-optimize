@@ -102,10 +102,23 @@ constexpr uint32_t kResampleMask = 127;
 __declspec(safebuffers) static inline int FastEvaluate(
     const void* self, const float* start, const float* end, uint32_t groupNum)
 {
+    // Bounds check groupNum against static capacity (512 groups)
+    if (groupNum >= 512) {
+        return 0;
+    }
+
     // Offset 0x1E0: m_isGroupLoaded (uint32_t)
     const uint32_t isLoaded = *(const uint32_t*)((const char*)self + 0x1E0);
     if (!isLoaded) {
         return 0;
+    }
+
+    // Offset 0x1F8: m_mapObjGroupArray (array of 512 CMapObjGroup* pointers)
+    const char* const* groupArray = (const char* const*)((const char*)self + 0x1F8);
+    const char* group = groupArray[groupNum];
+    // Offset 0x198 on CMapObjGroup: m_unkLoadedFlag (uint32_t, bit 1 indicates loaded)
+    if (!group || !(*(const uint8_t*)(group + 0x198) & 1)) {
+        return 13;
     }
 
     // Offset 0x130: m_groupInfo (array of 32-byte structs)
@@ -135,17 +148,6 @@ __declspec(safebuffers) static inline int FastEvaluate(
     float max_z = (start[2] > end[2]) ? start[2] : end[2];
     if (box[2] > max_z || box[5] < min_z) {
         return 12;
-    }
-
-    // Offset 0x1F8: m_mapObjGroupArray (array of CMapObjGroup*)
-    const char** groupArray = *(const char***)((const char*)self + 0x1F8);
-    if (!groupArray) {
-        return 0;
-    }
-    const char* group = groupArray[groupNum];
-    // Offset 0x198 on CMapObjGroup: m_unkLoadedFlag (uint32_t, bit 1 indicates loaded)
-    if (!group || !(*(const uint8_t*)(group + 0x198) & 1)) {
-        return 13;
     }
 
     return -1; // Segment bounding box overlaps and group is loaded; requires full ray test
