@@ -717,7 +717,7 @@ namespace Config {
         bool OptParticlePhysics = false;
         bool OptCollisionResetVisited = true;
         bool OptUIStrataCompact = true;
-        bool OptDbcFastRle = true;
+        bool OptDbcFastRle = false;
         bool OptUIFrameRemove = true;
         bool OptM2BatchCmpTransparent = true;
         bool OptM2BatchCmpSolid = true;

@@ -919,7 +919,7 @@ static const int kBoolSettingCount = (int)(sizeof(kBoolSettings) / sizeof(kBoolS
         g_settings.OptParticlePhysics      = GetPrivateProfileIntA("Graphics_Sound", "ParticlePhysics", 0, iniPath.c_str()) != 0;
         g_settings.OptCollisionResetVisited = GetPrivateProfileIntA("Graphics_Sound", "CollisionResetVisited", 1, iniPath.c_str()) != 0;
         g_settings.OptUIStrataCompact      = GetPrivateProfileIntA("UI_Lua", "UIStrataCompact", 1, iniPath.c_str()) != 0;
-        g_settings.OptDbcFastRle           = GetPrivateProfileIntA("General", "DbcFastRle", 1, iniPath.c_str()) != 0;
+        g_settings.OptDbcFastRle           = GetPrivateProfileIntA("General", "DbcFastRle", 0, iniPath.c_str()) != 0;
         g_settings.OptUIFrameRemove        = GetPrivateProfileIntA("UI_Lua", "UIFrameRemove", 1, iniPath.c_str()) != 0;
         g_settings.OptM2BatchCmpTransparent = GetPrivateProfileIntA("Graphics_Sound", "M2BatchCmpTransparent", 1, iniPath.c_str()) != 0;
         g_settings.OptM2BatchCmpSolid       = GetPrivateProfileIntA("Graphics_Sound", "M2BatchCmpSolid", 1, iniPath.c_str()) != 0;

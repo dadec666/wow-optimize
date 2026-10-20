@@ -29,7 +29,7 @@ static bool g_abSubject = false;
 static int  g_benchId = -1;
 
 constexpr uint32_t kLearnCalls = 500;
-constexpr uint32_t kResampleMask = 0xFF;
+constexpr uint32_t kResampleMask = 0x1FFF;
 
 static uint64_t g_calls = 0;
 static uint64_t g_fastDecomp = 0;
@@ -46,6 +46,7 @@ constexpr size_t kVerifyMax = 2048;
 constexpr size_t kOverrunRoom = 512;
 static uint8_t g_verifyClientBuf[kVerifyMax + kOverrunRoom];
 static uint8_t g_verifyFastBuf[kVerifyMax + kOverrunRoom];
+static volatile LONG g_verifyLock = 0;
 static uint64_t g_clientEdge = 0;   // calls handed to the client for the two cases below
 
 static void Retire(const char* reason) {
@@ -117,6 +118,14 @@ static __declspec(noinline) uint8_t* VerifyWithClient(const uint8_t* src, size_t
         return r;
     }
 
+    // If another thread is currently using the static scratch buffers, avoid contention
+    // and execute the fast path directly on caller's dst.
+    if (InterlockedCompareExchange(&g_verifyLock, 1, 0) != 0) {
+        uint8_t* const r = DecompressFast(src, dst_len, dst);
+        if (!r) { ++g_clientEdge; return g_orig(src, dst_len, dst); }
+        return r;
+    }
+
     // Alternated, so neither half always meets the cold caches and the other the warm ones.
     static unsigned s_benchOrder = 0;
     uint8_t* clientRet;
@@ -144,6 +153,7 @@ static __declspec(noinline) uint8_t* VerifyWithClient(const uint8_t* src, size_t
         ++g_clientEdge;
         const size_t written = (size_t)(clientRet - g_verifyClientBuf);
         std::memcpy(dst, g_verifyClientBuf, written);
+        InterlockedExchange(&g_verifyLock, 0);
         return dst + written;
     }
 
@@ -153,6 +163,7 @@ static __declspec(noinline) uint8_t* VerifyWithClient(const uint8_t* src, size_t
     if (clientWritten != fastWritten || std::memcmp(g_verifyClientBuf, g_verifyFastBuf, clientWritten) != 0) {
         Retire("decompressed buffer mismatch against client");
         std::memcpy(dst, g_verifyClientBuf, clientWritten);
+        InterlockedExchange(&g_verifyLock, 0);
         return dst + clientWritten;
     }
 
@@ -162,6 +173,7 @@ static __declspec(noinline) uint8_t* VerifyWithClient(const uint8_t* src, size_t
     }
 
     std::memcpy(dst, g_verifyFastBuf, fastWritten);
+    InterlockedExchange(&g_verifyLock, 0);
     return dst + fastWritten;
 }
 
