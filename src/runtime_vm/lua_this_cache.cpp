@@ -145,11 +145,10 @@ static uint32_t ComputeThis(uint32_t L, int wantedType) {
     else                                return 0;
     if (!obj) return 0;
 
-    // The taint move lua_rawgeti performs, reproduced exactly.
-    uint32_t vt = v[3];
-    if (vt && *(const uint32_t*)kTaintEnabled && !*(const uint32_t*)kTaintSuppressed) {
-        *(uint32_t*)kTaintCell = vt;
-    }
+    // In stock WoW, sub_819880 creates table[0] with taint == 0 for all genuine frames.
+    // If v[3] is non-zero, this is an unexpected or surrogate table; decline to the client
+    // so we never write to kTaintCell without a restore frame.
+    if (v[3] != 0) return 0;
 
     // The virtual type check still runs; only its error path is declined.
     uint32_t vtable = *(const uint32_t*)obj;

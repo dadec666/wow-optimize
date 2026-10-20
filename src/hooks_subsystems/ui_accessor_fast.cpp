@@ -15,11 +15,11 @@ static bool g_inLuaShutdown = false;
 static inline bool IsTeardownState() {
     if (g_inLuaShutdown) return true;
     uintptr_t gL = *(uintptr_t*)0x00D3F78C;
-    return (gL < 0x10000 || gL > 0xFFE00000);
+    return (gL < 0x10000 || gL > 0xFFFE0000);
 }
 
 static __forceinline bool IsValidPtr(uintptr_t p) {
-    return p > 0x10000 && p < 0xFFE00000;
+    return p > 0x10000 && p < 0xFFFE0000;
 }
 
 static __forceinline bool IsWowCodePtr(uintptr_t p) {
@@ -478,6 +478,9 @@ static FrameScript_Shutdown_t orig_FrameScript_Shutdown = nullptr;
 static void* __cdecl hook_FrameScript_Shutdown() {
     g_inLuaShutdown = true;
     void* res = orig_FrameScript_Shutdown();
+    *(uint32_t*)0x00D4139C = 0;
+    *(uint32_t*)0x00D413A0 = 0;
+    *(uint32_t*)0x00D413A4 = 0;
     return res;
 }
 
@@ -485,8 +488,14 @@ typedef int (__cdecl* FrameScript_Initialize_t)(int a1);
 static FrameScript_Initialize_t orig_FrameScript_Initialize = nullptr;
 
 static int __cdecl hook_FrameScript_Initialize(int a1) {
+    *(uint32_t*)0x00D4139C = 0;
+    *(uint32_t*)0x00D413A0 = 0;
+    *(uint32_t*)0x00D413A4 = 0;
     g_inLuaShutdown = false;
     int res = orig_FrameScript_Initialize(a1);
+    *(uint32_t*)0x00D4139C = 0;
+    *(uint32_t*)0x00D413A0 = 0;
+    *(uint32_t*)0x00D413A4 = 0;
     return res;
 }
 

@@ -2390,10 +2390,13 @@ static void MainThreadPump() {
         // render thread's hook. Does nothing once that has happened.
         GxRT::OnMainThreadTick();
 
-        // Detect lua_State destruction (logout/exit) - clear caches
+        // Detect lua_State destruction (logout/exit) - clear caches and sanitize taint state
         static uintptr_t g_lastLState = 0;
         uintptr_t currentL = *(uintptr_t*)0x00D3F78C;  // lua_State* global
         if (currentL != g_lastLState) {
+            *(uint32_t*)0x00D4139C = 0;
+            *(uint32_t*)0x00D413A0 = 0;
+            *(uint32_t*)0x00D413A4 = 0;
             ClearAssetPathCache();
             ApiCache::ClearCache();
             ClearCombatLogCache();
@@ -2401,6 +2404,15 @@ static void MainThreadPump() {
             ClearLuaPushStringCache();
             ClearDbcLookupCache();
             g_lastLState = currentL;
+        }
+
+        // If no script is currently executing on the main thread, clear any orphaned taint globals.
+        // The engine resets dword_D413A0 = 0 at 0x0052AF95 every tick, but omits clearing dword_D4139C
+        // and dword_D413A4, leaving orphaned taint after addon errors or aborted execution, which
+        // blocks keybindings (sub_5191C0) and /reload (sub_51D960).
+        if (*(const uint32_t*)0x00D413A0 == 0) {
+            *(uint32_t*)0x00D4139C = 0;
+            *(uint32_t*)0x00D413A4 = 0;
         }
 
         LuaOpt::OnMainThreadSleep(g_mainThreadId, elapsedMs);
