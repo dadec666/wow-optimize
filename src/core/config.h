@@ -724,6 +724,7 @@ namespace Config {
         bool OptParticleQuad = false;
         bool OptParallelParticles = false;
         bool OptM2ParallelRoots = true;
+        bool OptM2ParallelChildren = false;
         bool OptParticleFillFast = false;
         bool OptRibbonEdgeLoop = false;
         bool OptBoneTrackPrefetch = true;
