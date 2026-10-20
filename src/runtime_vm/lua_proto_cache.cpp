@@ -584,13 +584,13 @@ void* Classify(void* L, void* z, void* buff, const char* name, bool* checked) {
     // that matters. l_G changing proves a new state; l_G staying the same
     // proves nothing, because the client's Lua memory pool reuses the address.
     void* lG = RDP(L, kL_lG);
-    if (g_swapPending) {
+    if (g_swapPending || lG != g_globalState) {
         g_swapPending = false;
-        if (g_globalState) { FlushAll(); g_flushes++; g_swapFlushes++; }
-    } else if (lG != g_globalState) {
-        if (g_globalState) { FlushAll(); g_flushes++; }
+        FlushAll();
+        g_flushes++;
+        g_swapFlushes++;
+        g_globalState = lG;
     }
-    g_globalState = lG;
 
     const uint32_t taint = TaintToken();
     uint64_t key = KeyOf(src, srcLen, name, nameLen) ^ ((uint64_t)taint * 0xD6E8FEB86659FD93ULL);
@@ -1130,9 +1130,9 @@ void LogStats() {
 }
 
 void OnLuaStateSwapped() {
-    // Only a flag. The flush happens inside the parser hook, on the thread that
-    // owns the containers, before the next lookup can reach a stale entry.
     g_swapPending = true;
+    g_globalState = nullptr;
+    FlushAll();
 }
 
 } // namespace LuaProtoCache

@@ -375,11 +375,11 @@ namespace Config {
         // the compiled Proto; the client still builds the closure, environment
         // and taint, so nothing about ownership is shared. Opt-in, and it checks
         // reuses against a fresh compile before trusting itself.
-        // On by default since 3.19.2. A measured session spent 2128 ms inside
+        // Off by default. A measured session spent 2128 ms inside
         // the client's Lua compiler and nothing in a default install touched
         // any of it. A stale Proto is refused by its own fingerprint rather
         // than handed back, and a state swap drops everything.
-        bool OptLuaProtoCache = true;
+        bool OptLuaProtoCache = false;
         // The client's Lua interpreter, transcribed, with the string-key table
         // lookup inlined. Off: it is the function every line of Lua runs through.
         bool OptLuaVmFast = false;
@@ -594,7 +594,7 @@ namespace Config {
         // search switch, so nobody could turn it off on purpose either.
         bool OptMatrixVectorSse2 = false;
         bool OptWorldStateCoalesce = false;
-        bool OptD3d9RenderThread = true;
+        bool OptD3d9RenderThread = false;
         // Redundant D3D9 state removal. Inherits from the pair it used to hang
         // off, so writing no key changes nothing; see Config::Load.
         bool OptRenderStateDedup = false;

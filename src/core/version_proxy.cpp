@@ -1,4 +1,4 @@
-﻿// ============================================================================
+// ============================================================================
 // Description: Proxy wrapper for standard version.dll exports. Intercepts game boot calls and schedules the initialization thread after process setup.
 // Safety & Threading: Loader lock safe. Export ordinals must match native dll to boot.
 // ============================================================================
@@ -373,7 +373,7 @@ static DWORD WINAPI LoaderThread(LPVOID param) {
             const HMODULE nt = GetModuleHandleA("ntdll.dll");
             const bool wine = nt && GetProcAddress(nt, "wine_get_version") != NULL;
             const bool wantsRenderThread =
-                !wine && GetPrivateProfileIntA("Graphics_Sound", "D3d9RenderThread", 1, ini) != 0;
+                !wine && GetPrivateProfileIntA("Graphics_Sound", "D3d9RenderThread", 0, ini) != 0;
             const UINT v = GetPrivateProfileIntA("General", "LoaderDelayMs",
                                                  wantsRenderThread ? 0 : 3000, ini);
             delayMs = v > 10000 ? 10000 : v;

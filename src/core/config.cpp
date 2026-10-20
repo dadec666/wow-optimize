@@ -787,7 +787,7 @@ static const int kBoolSettingCount = (int)(sizeof(kBoolSettings) / sizeof(kBoolS
         g_settings.OptVertexFmtInline     = GetPrivateProfileIntA("Graphics_Sound", "VertexFmtInline", 0, iniPath.c_str()) != 0;
         g_settings.OptObjMgrFindFast      = GetPrivateProfileIntA("General", "ObjMgrFindFast", 1, iniPath.c_str()) != 0;
         g_settings.OptQuatLerpSse2        = GetPrivateProfileIntA("Graphics_Sound", "QuatLerpSse2", 1, iniPath.c_str()) != 0;
-        g_settings.OptLuaProtoCache       = GetPrivateProfileIntA("UI_Lua", "LuaProtoCache", 1, iniPath.c_str()) != 0;
+        g_settings.OptLuaProtoCache       = GetPrivateProfileIntA("UI_Lua", "LuaProtoCache", 0, iniPath.c_str()) != 0;
         g_settings.OptLuaVmFast           = GetPrivateProfileIntA("UI_Lua", "LuaVmFast", 0, iniPath.c_str()) != 0;
         g_settings.OptLuaBytecodeStore    = GetPrivateProfileIntA("UI_Lua", "LuaBytecodeStore", 1, iniPath.c_str()) != 0;
         g_settings.OptLuaThisFast         = GetPrivateProfileIntA("UI_Lua", "LuaThisFast", 1, iniPath.c_str()) != 0;
@@ -852,7 +852,7 @@ static const int kBoolSettingCount = (int)(sizeof(kBoolSettings) / sizeof(kBoolS
         g_settings.OptShadowCascadeHold = GetPrivateProfileIntA("Graphics_Sound", "ShadowCascadeHold", 0, iniPath.c_str()) != 0;
         g_settings.OptMatrixVectorSse2  = GetPrivateProfileIntA("Graphics_Sound", "MatrixVectorSse2", 0, iniPath.c_str()) != 0;
         g_settings.OptWorldStateCoalesce  = GetPrivateProfileIntA("Graphics_Sound", "WorldStateCoalesce", 0, iniPath.c_str()) != 0;
-        g_settings.OptD3d9RenderThread    = GetPrivateProfileIntA("Graphics_Sound", "D3d9RenderThread", 1, iniPath.c_str()) != 0;
+        g_settings.OptD3d9RenderThread    = GetPrivateProfileIntA("Graphics_Sound", "D3d9RenderThread", 0, iniPath.c_str()) != 0;
         // Skipping a SetRenderState that changes nothing has nothing to do with
         // running under a translation layer, so it has its own key. An absent key
         // inherits the pair it used to be gated on, which keeps an existing ini

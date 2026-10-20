@@ -43,7 +43,7 @@ static fn_4D4DB0 g_orig_4D4DB0 = nullptr;
 static volatile LONG g_tc_averted = 0;
 static volatile long g_tc_logged  = 0;
 
-static int __cdecl Safe_sub_4D4DB0(int64_t guid, int typeMask)
+static int __cdecl Safe_sub_4D4DB0_Impl(int64_t guid, int typeMask)
 {
     if (guid == 0) return 0;
 
@@ -78,6 +78,29 @@ static int __cdecl Safe_sub_4D4DB0(int64_t guid, int typeMask)
     }
 
     return (int)obj;
+}
+
+// Naked thunk to strictly preserve ECX.
+// Third-party hooks (such as AwesomeWotlkLib around __thiscall sub_4F66C0) call
+// sub_4D4DB0 with mask 8 without saving ECX across the call. Compiling the C++
+// function directly can leave ECX = 8, causing sub_4F66C0 to crash at 0x004F598D
+// reading [8 + 0x2C8]. Preserving ECX across the detour guarantees 100% caller safety.
+__declspec(naked) static int __cdecl Safe_sub_4D4DB0(int64_t guid, int typeMask)
+{
+    __asm {
+        push ebp
+        mov ebp, esp
+        push ecx
+        push dword ptr [ebp + 16] // typeMask
+        push dword ptr [ebp + 12] // guid high
+        push dword ptr [ebp + 8]  // guid low
+        call Safe_sub_4D4DB0_Impl
+        add esp, 12
+        pop ecx
+        mov esp, ebp
+        pop ebp
+        ret
+    }
 }
 
 bool InstallTypeCheckSafety()

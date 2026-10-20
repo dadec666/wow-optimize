@@ -477,6 +477,7 @@ static FrameScript_Shutdown_t orig_FrameScript_Shutdown = nullptr;
 
 static void* __cdecl hook_FrameScript_Shutdown() {
     g_inLuaShutdown = true;
+    LuaOpt::OnLuaStateShutdown();
     void* res = orig_FrameScript_Shutdown();
     *(uint32_t*)0x00D4139C = 0;
     *(uint32_t*)0x00D413A0 = 0;
@@ -496,6 +497,10 @@ static int __cdecl hook_FrameScript_Initialize(int a1) {
     *(uint32_t*)0x00D4139C = 0;
     *(uint32_t*)0x00D413A0 = 0;
     *(uint32_t*)0x00D413A4 = 0;
+    void* newL = *(void**)0x00D3F78C;
+    if (newL) {
+        LuaOpt::OnLuaStateCreated(newL);
+    }
     return res;
 }
 

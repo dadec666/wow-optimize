@@ -1140,6 +1140,11 @@ bool Init() {
         Log("[GxRT] not started: %s.", g_why);
         return false;
     }
+    if (GetModuleHandleA("ReShade32.dll") || GetModuleHandleA("ReShade.dll") || GetModuleHandleA("ReShade64.dll")) {
+        g_why = "incompatible with ReShade";
+        Log("[GxRT] not started: ReShade detected; D3D9 render thread is incompatible with ReShade hooks.");
+        return false;
+    }
     if (memcmp((const void*)kLoadD3dLib, kLoadD3dLibPrologue, sizeof(kLoadD3dLibPrologue)) != 0) {
         g_why = "the client's D3D loader is not the one this was read from";
         Log("[GxRT] not started: %s (0x%08X).", g_why, (unsigned)kLoadD3dLib);
@@ -1215,6 +1220,13 @@ constexpr double    kReportMs = 6000.0;               // after asking, before sa
 
 void OnMainThreadTick() {
     if (!g_armed || g_everActive || g_dead) return;
+
+    if (GetModuleHandleA("ReShade32.dll") || GetModuleHandleA("ReShade.dll") || GetModuleHandleA("ReShade64.dll")) {
+        g_armed = false;
+        g_why = "incompatible with ReShade";
+        Log("[GxRT] automatic device restart skipped: ReShade detected.");
+        return;
+    }
 
     LARGE_INTEGER f, now;
     QueryPerformanceFrequency(&f);

@@ -1661,8 +1661,9 @@ extern "C" bool FrameThrottle_Check(const char* namePtr);
 static void __cdecl Hooked_FrameScript_Execute(const char* code, const char* source, int unknown) {
     // Inject markers before addon code on new lua_State
     lua_State* currentL = ReadLuaState();
-    if (currentL && currentL == g_pendingInjectState &&
+    if (currentL && (currentL == g_pendingInjectState || !MarkerStillPresent(currentL)) &&
         InterlockedCompareExchange(&g_frameScriptInjected, 1, 0) == 0) {
+        g_pendingInjectState = currentL;
         __try {
             if (Api.lua_pushnil && Api.lua_setfield && Api.lua_pushboolean) {
                 Api.lua_pushnil(currentL);
@@ -2381,10 +2382,57 @@ bool IsSwapping()  {
 DWORD GetLastSwapTick() { return g_lastLuaSwapTick; }
 bool IsInitialized() { return State.initialized; }
 
-void RestoreAllocator() {
-    if (g_luaAllocReplaced) {
-        RestoreLuaAllocator();
+void OnLuaStateCreated(void* L) {
+    lua_State* currentL = (lua_State*)L;
+    if (!currentL) return;
+    g_pendingInjectState = currentL;
+    InterlockedExchange(&g_frameScriptInjected, 0);
+    Api.L = currentL;
+
+    UICache::ClearCache();
+    ApiCache::ClearCache();
+    ClearLuaOptCaches();
+    LuaInternals::InvalidateCache();
+    LuaFastPath::InvalidateWoWCache();
+    ClearTableCache();
+    LuaBytecodeCache::OnLuaStateSwap();
+    ClearAddonPreload();
+    LuaProtoCache::OnLuaStateSwapped();
+
+    __try {
+        if (Api.lua_pushboolean && Api.lua_setfield && Api.lua_pushstring) {
+            int topBefore = Api.lua_gettop ? Api.lua_gettop(currentL) : 0;
+            WriteLuaGlobal_Bool(currentL, "LUABOOST_DLL_LOADED", true);
+            WriteLuaGlobal_Bool(currentL, "LUABOOST_DLL_GC_ACTIVE", State.gcOptimized);
+            WriteLuaGlobal_Bool(currentL, "LUABOOST_DLL_LUA_ALLOC", g_luaAllocReplaced);
+            WriteLuaGlobal_String(currentL, "LUABOOST_DLL_VERSION", WOW_OPTIMIZE_VERSION_STR);
+            char latest[32] = {};
+            if (VersionChecker_GetLatestVersion(latest, sizeof(latest))) {
+                WriteLuaGlobal_String(currentL, "LUABOOST_DLL_LATEST_VERSION", latest);
+            } else {
+                WriteLuaGlobal_String(currentL, "LUABOOST_DLL_LATEST_VERSION", "unknown");
+            }
+            if (Api.lua_settop) Api.lua_settop(currentL, topBefore);
+            Log("[LuaOpt] OnLuaStateCreated: markers written on L=0x%08X", (unsigned)(uintptr_t)currentL);
+        }
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        __try { if (Api.lua_settop) Api.lua_settop(currentL, 0); }
+        __except(EXCEPTION_EXECUTE_HANDLER) {}
     }
+}
+
+void OnLuaStateShutdown() {
+    g_isSwapping.store(true, std::memory_order_release);
+    g_isReloading.store(true, std::memory_order_release);
+    UICache::ClearCache();
+    ApiCache::ClearCache();
+    ClearLuaOptCaches();
+    LuaInternals::InvalidateCache();
+    LuaFastPath::InvalidateWoWCache();
+    ClearTableCache();
+    LuaBytecodeCache::OnLuaStateSwap();
+    ClearAddonPreload();
+    LuaProtoCache::OnLuaStateSwapped();
 }
 
 } // namespace LuaOpt

@@ -26,6 +26,10 @@ bool PrepareFromWorkerThread();
 // Subsequent: incremental GC step.
 void OnMainThreadSleep(DWORD mainThreadId, double frameMs = 0.0);
 
+// Synchronously notified when WoW creates or destroys a lua_State
+void OnLuaStateCreated(void* L);
+void OnLuaStateShutdown();
+
 // Call on DLL unload.
 void Shutdown();
 
