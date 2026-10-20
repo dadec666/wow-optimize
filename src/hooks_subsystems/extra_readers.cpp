@@ -73,6 +73,7 @@ int g_state = 0;            // 0 waiting, 1 started, 2 declined
 int g_waitedFrames = 0;
 void* g_thread = nullptr;
 void* g_thread3 = nullptr;  // the third reader, under General/ExtraReaderThird
+void* g_thread4 = nullptr;  // the fourth reader, under General/ExtraReaderFourth
 
 typedef void* (__cdecl* StartThread_fn)(int queue, const char* name);
 
@@ -130,12 +131,23 @@ void OnFrame() {
             Log("[ExtraReaders] the third reader thread was asked for and the client's routine returned nothing; "
                 "two readers run.");
     }
+    if (Config::g_settings.OptExtraReaderFourth && g_thread3) {
+        g_thread4 = ((StartThread_fn)kStartThread)(queue, "AsyncRead4");
+        if (g_thread4)
+            Log("[ExtraReaders] a fourth reader thread (CAsyncThread %p) serves the same queue.", g_thread4);
+        else
+            Log("[ExtraReaders] the fourth reader thread was asked for and the client's routine returned nothing.");
+    }
 }
 
 void LogStats() {
     if (!Config::g_settings.OptExtraReaderThread) return;
-    if (g_state == 1) Log("[ExtraReaders] %s reader thread(s) of our own running since the reader appeared: %s.",
-                          g_thread3 ? "two" : "one", g_thread3 ? "the second and the third" : "the second");
+    int count = (g_thread != nullptr) + (g_thread3 != nullptr) + (g_thread4 != nullptr);
+    if (g_state == 1) Log("[ExtraReaders] %d reader thread(s) of our own running since the reader appeared (%s%s%s).",
+                          count,
+                          g_thread ? "AsyncRead2" : "",
+                          g_thread3 ? ", AsyncRead3" : "",
+                          g_thread4 ? ", AsyncRead4" : "");
     else if (g_state == 2) Log("[ExtraReaders] not running; the reason is logged where it was decided.");
     else Log("[ExtraReaders] waiting for the client's reader queue.");
 }

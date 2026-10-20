@@ -43,6 +43,7 @@ static const BoolSetting kBoolSettings[] = {
     { "General", "FastNetworkInit", &Settings::OptFastNetworkInit },
     { "General", "ExtraReaderThread", &Settings::OptExtraReaderThread },
     { "General", "ExtraReaderThird", &Settings::OptExtraReaderThird },
+    { "General", "ExtraReaderFourth", &Settings::OptExtraReaderFourth },
     { "General", "LoadingFrameCap", &Settings::OptLoadingFrameCap },
     { "General", "NoWebProxy", &Settings::OptNoWebProxy },
     { "General", "ClientCodeAudit", &Settings::OptClientCodeAudit },
@@ -627,6 +628,7 @@ static const int kBoolSettingCount = (int)(sizeof(kBoolSettings) / sizeof(kBoolS
         g_settings.OptFastNetworkInit     = GetPrivateProfileIntA("General", "FastNetworkInit", 0, iniPath.c_str()) != 0;
         g_settings.OptExtraReaderThread   = GetPrivateProfileIntA("General", "ExtraReaderThread", 1, iniPath.c_str()) != 0;
         g_settings.OptExtraReaderThird    = GetPrivateProfileIntA("General", "ExtraReaderThird", 0, iniPath.c_str()) != 0;
+        g_settings.OptExtraReaderFourth   = GetPrivateProfileIntA("General", "ExtraReaderFourth", 0, iniPath.c_str()) != 0;
         g_settings.OptLoadingFrameCap     = GetPrivateProfileIntA("General", "LoadingFrameCap", 0, iniPath.c_str()) != 0;
         g_settings.OptNoWebProxy          = GetPrivateProfileIntA("General", "NoWebProxy", 0, iniPath.c_str()) != 0;
         g_settings.OptClientCodeAudit     = GetPrivateProfileIntA("General", "ClientCodeAudit", 1, iniPath.c_str()) != 0;
