@@ -196,6 +196,8 @@ void FillChunk(int c) {
     Job& j = g_job;
     ChunkOut& o = j.out[c];
     Writer w = j.start[c];
+    LoadFpu(j.cw);
+    _mm_setcsr(j.mxcsr);
     __try {
         for (uint32_t i = j.lo[c]; i < j.hi[c]; ++i)
             g_fill(g_emCopy[c], ParticleAt(j.emitter, i), &w);
@@ -382,6 +384,8 @@ void LogVertexDifference(uint8_t* em, const Job& j, int chunks, uint8_t* const* 
     Writer wb = StagingWriter(w0, L, g_regionEnd[kMaxChunks + 1], count * vpp,
                               g_sink[kMaxChunks + 1], &bBase);
     memset(bBase, 0xCD, (size_t)count * vpp * L.stride);
+    LoadFpu(j.cw);
+    _mm_setcsr(j.mxcsr);
     ClientLoop(em, &wb, count);
     const bool repeats = wb.count == n && memcmp(bBase, aBase, (size_t)n * L.stride) == 0;
     Log("[ParallelParticles]   the client's own loop run a second time on the same emitter %s.",
@@ -477,6 +481,8 @@ void Parallel(uint8_t* em, void* writerPtr, uint32_t count) {
         Writer wa = StagingWriter(w0, L, g_regionEnd[kMaxChunks], count * vpp,
                                   g_sink[kMaxChunks], &aBase);
         memset(aBase, 0xCD, (size_t)count * vpp * L.stride);
+        LoadFpu(j.cw);
+        _mm_setcsr(j.mxcsr);
         ClientLoop(em, &wa, count);        // the real emitter, a staging writer
         const uint32_t n = wa.count;
 
@@ -506,6 +512,8 @@ void Parallel(uint8_t* em, void* writerPtr, uint32_t count) {
         if (L.sink && n) memcpy(w0.p[1], g_sink[kMaxChunks], 12);
         // em + kEmBox already holds the client's box.
         if (bad) Retire(bad);
+        LoadFpu(j.cw);
+        _mm_setcsr(j.mxcsr);
         ++g_parallel;
         g_parallelParticles += count;
         return;
@@ -521,6 +529,8 @@ void Parallel(uint8_t* em, void* writerPtr, uint32_t count) {
     real.count = w0.count + total;
     if (L.sink && lastWith >= 0) memcpy(w0.p[1], g_sink[lastWith], 12);
     memcpy(em + kEmBox, box, sizeof(box));
+    LoadFpu(j.cw);
+    _mm_setcsr(j.mxcsr);
     ++g_parallel;
     g_parallelParticles += count;
 }
