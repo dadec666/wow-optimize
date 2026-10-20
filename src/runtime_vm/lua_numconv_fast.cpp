@@ -41,6 +41,8 @@ static __forceinline double TValue_nvalue(uintptr_t tv) {
 
 // Resolve a Lua stack index to a raw TValue pointer.
 static __forceinline uintptr_t ResolveIndex(uintptr_t L, int idx) {
+    if (!IsValidPtr(L))
+        return 0;
     if (idx > 0) {
         uintptr_t base = *(uintptr_t*)(L + 16);
         if (!IsValidPtr(base))
@@ -71,12 +73,12 @@ typedef int (__cdecl* lua_gettop_t)(uintptr_t L);
 static lua_gettop_t orig_lua_gettop = nullptr;
 
 static int __cdecl hook_lua_gettop(uintptr_t L) {
-    __try {
+    if (IsValidPtr(L)) {
         uintptr_t top  = *(uintptr_t*)(L + 0x0C);
         uintptr_t base = *(uintptr_t*)(L + 0x10);
         if (top >= base && (top - base) < 0x100000)
             return (int)((top - base) >> 4);
-    } __except(EXCEPTION_EXECUTE_HANDLER) {}
+    }
     return orig_lua_gettop(L);
 }
 
@@ -87,14 +89,10 @@ typedef int (__cdecl* lua_isnumber_t)(uintptr_t L, int idx);
 static lua_isnumber_t orig_lua_isnumber = nullptr;
 
 static int __cdecl hook_lua_isnumber(uintptr_t L, int idx) {
-    __try {
-        uintptr_t tv = ResolveIndex(L, idx);
-        if (tv) {
-            if (TValue_tt(tv) == LUA_TNUMBER)
-                return 1;
-        }
-    } __except(EXCEPTION_EXECUTE_HANDLER) {
-        return 0;
+    uintptr_t tv = ResolveIndex(L, idx);
+    if (tv) {
+        if (TValue_tt(tv) == LUA_TNUMBER)
+            return 1;
     }
     return orig_lua_isnumber(L, idx);
 }
@@ -106,13 +104,9 @@ typedef double (__cdecl* lua_tonumber_t)(uintptr_t L, int idx);
 static lua_tonumber_t orig_lua_tonumber = nullptr;
 
 static double __cdecl hook_lua_tonumber(uintptr_t L, int idx) {
-    __try {
-        uintptr_t tv = ResolveIndex(L, idx);
-        if (tv && TValue_tt(tv) == LUA_TNUMBER) {
-            return TValue_nvalue(tv);
-        }
-    } __except(EXCEPTION_EXECUTE_HANDLER) {
-        return 0.0;
+    uintptr_t tv = ResolveIndex(L, idx);
+    if (tv && TValue_tt(tv) == LUA_TNUMBER) {
+        return TValue_nvalue(tv);
     }
     return orig_lua_tonumber(L, idx);
 }

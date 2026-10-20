@@ -7,6 +7,7 @@
 #include "version.h"
 #include "MinHook.h"
 #include "lua_optimize.h"
+#include "config.h"
 
 // Forward declaration for Log
 extern "C" void Log(const char* fmt, ...);
@@ -73,6 +74,11 @@ double __cdecl hooked_lua_tonumber(void* L, int idx) {
 }
 
 bool InstallLuaToNumberFast() {
+    // sub_84E030 = lua_tonumber. Handled by LuaNumConvFast if active.
+    if (Config::g_settings.OptLuaNumConvFast) {
+        Log("[LuaToNumberFast] Stood aside: lua_tonumber at 0x0084E030 is handled by LuaNumConvFast");
+        return true;
+    }
     // sub_84E030 = lua_tonumber.  (0x84E0E0 is lua_tolstring — the old bug.)
     void* target = (void*)0x0084E030;
 

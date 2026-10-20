@@ -179,6 +179,11 @@ __declspec(safebuffers) static bool __stdcall Hook_sub_824B70(const uint32_t* a1
 bool Init() {
     if (!Config::g_settings.OptM2BatchCmpSkin) return true;
 
+    if (Config::g_settings.OptM2SortKey) {
+        Log("[M2BatchCmpSkin] NOT active: M2SortKey is on and hooks 0x%08X", (unsigned)kTarget);
+        return false;
+    }
+
     if (memcmp((const void*)kTarget, kPrologue, sizeof(kPrologue)) != 0) {
         Log("[M2BatchCmpSkin] NOT active: prologue mismatch at 0x%08X", (unsigned)kTarget);
         return false;

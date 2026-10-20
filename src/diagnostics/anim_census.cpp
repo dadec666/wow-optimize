@@ -478,6 +478,11 @@ bool Init() {
         return true;
     }
 
+    if (Config::g_settings.OptM2AnimReuse) {
+        Log("[AnimCensus] NOT active: M2AnimReuse is on and hooks 0x%08X", (unsigned)ADDR_AnimateModel);
+        return false;
+    }
+
     LARGE_INTEGER freq;
     QueryPerformanceFrequency(&freq);
     if (freq.QuadPart == 0) return false;

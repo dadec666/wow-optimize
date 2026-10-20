@@ -3,6 +3,7 @@
 #include "MinHook.h"
 #include "version.h"
 #include "crash_dumper.h"
+#include "config.h"
 
 extern "C" void Log(const char* fmt, ...);
 
@@ -43,6 +44,10 @@ static uintptr_t __cdecl hook(uintptr_t table, uintptr_t key_tv)
 }
 
 bool InstallLuaHgetFast() {
+    if (Config::g_settings.OptLuaHGetDispatch) {
+        Log("[HGetFast] stood aside: LuaHGetDispatch is active on 0x0085C470");
+        return false;
+    }
     void* t = (void*)0x0085C470;
     if (MH_CreateHook(t, hook, (void**)&orig_get) != MH_OK) return false;
     MH_EnableHook(t);

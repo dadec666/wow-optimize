@@ -376,6 +376,11 @@ int __stdcall Hooked_Compare(void* a, void* b) {
 bool Init() {
     if (!Config::g_settings.OptM2SortKey) return true;
 
+    if (Config::g_settings.OptM2BatchCmpSkin) {
+        Log("[M2SortKey] NOT active: M2BatchCmpSkin is on and hooks 0x%08X", (unsigned)kCompare);
+        return false;
+    }
+
     g_slot = (Slot*)HighTables::Reserve("m2_sort_key", sizeof(Slot) * kSlots);
     if (!g_slot) {
         Log("[M2SortKey] no table - not installing. Without it every comparison "

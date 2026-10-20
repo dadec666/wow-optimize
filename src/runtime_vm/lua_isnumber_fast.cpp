@@ -3,6 +3,7 @@
 #include "MinHook.h"
 #include "version.h"
 #include "crash_dumper.h"
+#include "config.h"
 
 extern "C" void Log(const char* fmt, ...);
 
@@ -38,9 +39,7 @@ static inline uintptr_t index2adr(uintptr_t L, int idx) {
 }
 
 static int __cdecl hook(uintptr_t L, int idx) {
-    if (L < 0x10000 || L > 0xFFE00000)
-        return orig(L, idx);
-    __try {
+    if (L >= 0x10000 && L <= 0xFFE00000) {
         if (idx < 0 && idx > -10000) {
             uintptr_t tv = index2adr(L, idx);
             if (tv && tv != NIL_ADDR) {
@@ -50,11 +49,15 @@ static int __cdecl hook(uintptr_t L, int idx) {
                 }
             }
         }
-    } __except (EXCEPTION_EXECUTE_HANDLER) {}
+    }
     return orig(L, idx);
 }
 
 bool InstallLuaIsNumberFast() {
+    if (Config::g_settings.OptLuaNumConvFast) {
+        Log("[IsNumber] stood aside: LuaNumConvFast is active on 0x0084DF20");
+        return false;
+    }
     void* t = (void*)0x0084DF20;
     if (MH_CreateHook(t, hook, (void**)&orig) != MH_OK) return false;
     WO_EnableHook(t);
