@@ -104,6 +104,13 @@ constexpr uint32_t kVerifyFirst = 20000;
 constexpr uint32_t kResampleMask = 127;
 
 // Internal simulated texture struct for startup verification
+struct TestAtlas {
+    uint16_t count;
+    uint16_t dirty;
+    uint8_t  pad[0x14];
+    void*    gxTex;
+};
+
 struct TestTexture {
     uint8_t  pad0[0x28];     // 0x00 - 0x27
     uint16_t flags;          // 0x28
@@ -119,9 +126,26 @@ bool RunStartupSelfTest() {
     texLoaded.flags = 0;
     texLoaded.gxTex = (void*)0x12345678;
 
-    TestTexture texAtlas{};
-    texAtlas.flags = 4;
-    texAtlas.gxTex = (void*)0x12345678;
+    TestAtlas atlasLoaded{};
+    atlasLoaded.dirty = 0;
+    atlasLoaded.gxTex = (void*)0x87654321;
+
+    TestTexture texAtlasResident{};
+    texAtlasResident.flags = 4;
+    texAtlasResident.atlas = &atlasLoaded;
+
+    TestAtlas atlasDirty{};
+    atlasDirty.dirty = 1;
+    atlasDirty.gxTex = (void*)0x87654321;
+
+    TestTexture texAtlasDirty{};
+    texAtlasDirty.flags = 4;
+    texAtlasDirty.atlas = &atlasDirty;
+
+    TestTexture texAtlasCorruptAsync{};
+    texAtlasCorruptAsync.flags = 4;
+    texAtlasCorruptAsync.atlas = &atlasLoaded;
+    texAtlasCorruptAsync.asyncObject = (void*)0xFFFFFFFF;
 
     TestTexture texUnloaded{};
     texUnloaded.flags = 0;
@@ -129,12 +153,28 @@ bool RunStartupSelfTest() {
 
     // Fast path evaluation function matching Hooked_TextureGetGxTex logic
     auto TryFast = [](void* t, uint8_t streaming) -> void* {
-        if (t) {
+        if ((uintptr_t)t >= 0x10000 && (uintptr_t)t < 0xFFFE0000) {
+            void* asyncObj = *(void**)((uintptr_t)t + 0x40);
+            if (asyncObj && ((uintptr_t)asyncObj < 0x10000 || (uintptr_t)asyncObj >= 0xFFFE0000)) {
+                *(void**)((uintptr_t)t + 0x40) = nullptr;
+            }
+
             const uint16_t f = *(const uint16_t*)((uintptr_t)t + 0x28);
             if ((f & 4) == 0) {
                 void* g = *(void**)((uintptr_t)t + 0x44);
                 if (g && streaming == 0) {
                     return g;
+                }
+            } else {
+                void* atlas = *(void**)((uintptr_t)t + 0x5C);
+                if ((uintptr_t)atlas >= 0x10000 && (uintptr_t)atlas < 0xFFFE0000) {
+                    const uint16_t dirty = *(const uint16_t*)((uintptr_t)atlas + 2);
+                    if ((dirty & 1) == 0 && *(void**)((uintptr_t)t + 0x40) == nullptr) {
+                        void* gxTex = *(void**)((uintptr_t)atlas + 0x18);
+                        if (gxTex) {
+                            return gxTex;
+                        }
+                    }
                 }
             }
         }
@@ -142,9 +182,13 @@ bool RunStartupSelfTest() {
     };
 
     if (TryFast(&texLoaded, 0) != (void*)0x12345678) return false;
-    if (TryFast(&texAtlas, 0) != nullptr) return false;
+    if (TryFast(&texAtlasResident, 0) != (void*)0x87654321) return false;
+    if (TryFast(&texAtlasDirty, 0) != nullptr) return false;
+    if (TryFast(&texAtlasCorruptAsync, 0) != (void*)0x87654321) return false;
+    if (texAtlasCorruptAsync.asyncObject != nullptr) return false; // sanitized!
     if (TryFast(&texUnloaded, 0) != nullptr) return false;
     if (TryFast(nullptr, 0) != nullptr) return false;
+    if (TryFast((void*)0xFFFFFFFF, 0) != nullptr) return false;
     if (TryFast(&texLoaded, 1) != nullptr) return false;
 
     return true;
@@ -161,13 +205,32 @@ __declspec(safebuffers) void* __cdecl Hooked_TextureGetGxTex(void* texture, int 
     void* candidate = nullptr;
     bool canFast = false;
 
-    if (texture) {
+    if ((uintptr_t)texture >= 0x10000 && (uintptr_t)texture < 0xFFFE0000) {
+        // Sanitize corrupted asyncObject if present (e.g. 0xFFFFFFFF)
+        void* asyncObj = *(void**)((uintptr_t)texture + 0x40);
+        if (asyncObj && ((uintptr_t)asyncObj < 0x10000 || (uintptr_t)asyncObj >= 0xFFFE0000)) {
+            *(void**)((uintptr_t)texture + 0x40) = nullptr;
+        }
+
         const uint16_t flags = *(const uint16_t*)((uintptr_t)texture + 0x28);
         if ((flags & 4) == 0) {
             void* gxTex = *(void**)((uintptr_t)texture + 0x44);
             if (gxTex && *(const uint8_t*)kStreamingModeGlobal == 0) {
                 candidate = gxTex;
                 canFast = true;
+            }
+        } else {
+            // Atlas texture fast-path: resident and not dirty, no pending async
+            void* atlas = *(void**)((uintptr_t)texture + 0x5C);
+            if ((uintptr_t)atlas >= 0x10000 && (uintptr_t)atlas < 0xFFFE0000) {
+                const uint16_t dirty = *(const uint16_t*)((uintptr_t)atlas + 2);
+                if ((dirty & 1) == 0 && *(void**)((uintptr_t)texture + 0x40) == nullptr) {
+                    void* gxTex = *(void**)((uintptr_t)atlas + 0x18);
+                    if (gxTex) {
+                        candidate = gxTex;
+                        canFast = true;
+                    }
+                }
             }
         }
     }

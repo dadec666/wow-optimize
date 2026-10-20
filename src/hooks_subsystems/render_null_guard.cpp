@@ -138,10 +138,66 @@ static int __cdecl Hooked_873060(int a1, int a2)
     return g_orig873060(a1, a2);
 }
 
+// ----------------------------------------------------------------------------
+// AsyncTextureWait guard (sub_4B6550 @ 0x004B6550)
+//
+// In stock 3.3.5a build 12340, TextureGetGxTex (sub_4B6CB0) invokes
+// AsyncTextureWait (sub_4B6550) when m_asyncObject (at offset +0x40) is non-zero.
+// sub_4B6550 blindly loads edi = [esi+40h] and executes:
+//     cmp dword ptr [edi+4], 0
+//
+// If an async operation failed, was aborted, or an external caller/addon
+// left INVALID_HANDLE_VALUE ((void*)-1 / 0xFFFFFFFF) or a wild pointer in
+// texture->m_asyncObject, the client dereferences [0xFFFFFFFF+4] = 0x00000003,
+// crashing immediately with 0xC0000005 ACCESS_VIOLATION on the render thread.
+//
+// Guard:
+// If esi is invalid (< 0x10000 or >= 0xFFFE0000), or if [esi+0x40] is invalid,
+// we sanitize [esi+0x40] to nullptr, count the suppression, and return
+// immediately. This avoids the fatal dereference and allows TextureGetGxTex
+// to proceed safely to return the atlas/surface pointer.
+// ----------------------------------------------------------------------------
+
+static constexpr uintptr_t kTarget4B6550 = 0x004B6550;
+static const unsigned char kExpectedPrologue4B6550[8] = {
+    0x57, 0x8B, 0x7E, 0x40, 0x85, 0xFF, 0x74, 0x1C
+};
+
+static void* g_orig4B6550 = nullptr;
+static volatile LONG g_asyncWaitSuppressed = 0;
+static bool g_guard4B6550Active = false;
+
+__declspec(naked) static void Hooked_4B6550() {
+    __asm {
+        cmp esi, 0x10000
+        jb skip_wait
+        cmp esi, 0xFFFE0000
+        jae skip_wait
+
+        mov eax, [esi + 0x40]
+        test eax, eax
+        jz skip_wait
+
+        cmp eax, 0x10000
+        jb sanitize_and_skip
+        cmp eax, 0xFFFE0000
+        jae sanitize_and_skip
+
+        jmp dword ptr [g_orig4B6550]
+
+    sanitize_and_skip:
+        mov dword ptr [esi + 0x40], 0
+        inc dword ptr [g_asyncWaitSuppressed]
+
+    skip_wait:
+        ret
+    }
+}
+
 bool InstallRenderNullGuard()
 {
     if (!Config::g_settings.OptRenderNullGuard) {
-        Log("[RenderGuard] DISABLED via configuration - sub_873060 runs unguarded");
+        Log("[RenderGuard] DISABLED via configuration - sub_873060 and sub_4B6550 run unguarded");
         return true;
     }
 
@@ -156,16 +212,32 @@ bool InstallRenderNullGuard()
     }
 
     if (MH_CreateHook(target, (void*)Hooked_873060, (void**)&g_orig873060) != MH_OK) {
-        Log("[RenderGuard] MH_CreateHook FAILED");
+        Log("[RenderGuard] MH_CreateHook FAILED for 0x00873060");
         return false;
     }
     if (MH_EnableHook(target) != MH_OK) {
-        Log("[RenderGuard] MH_EnableHook FAILED");
+        Log("[RenderGuard] MH_EnableHook FAILED for 0x00873060");
         return false;
     }
 
     g_active = true;
     Log("[RenderGuard] ACTIVE v3 -- guards sub_873060, suppressions are counted");
+
+    void* target4B6550 = (void*)kTarget4B6550;
+    if (WowOpt_ClientPatchAllowed(target4B6550)) {
+        if (memcmp(target4B6550, kExpectedPrologue4B6550, sizeof(kExpectedPrologue4B6550)) == 0) {
+            if (MH_CreateHook(target4B6550, (void*)Hooked_4B6550, (void**)&g_orig4B6550) == MH_OK &&
+                MH_EnableHook(target4B6550) == MH_OK) {
+                g_guard4B6550Active = true;
+                Log("[RenderGuard] AsyncTextureWait guard ACTIVE on sub_4B6550 @ 0x%08X", (unsigned)kTarget4B6550);
+            } else {
+                Log("[RenderGuard] MH_CreateHook FAILED for 0x%08X", (unsigned)kTarget4B6550);
+            }
+        } else {
+            Log("[RenderGuard] BAD PROLOGUE at 0x%08X", (unsigned)kTarget4B6550);
+        }
+    }
+
     return true;
 }
 
@@ -199,4 +271,10 @@ void RenderNullGuard_LogStats()
     Log("[RenderGuard]   parameter table null: %lld   CGxDevice null: %lld   "
         "D3D9 device not ready: %lld",
         g_noParamTable, g_noGxDevice, g_deviceNotReady);
+
+    if (g_asyncWaitSuppressed > 0) {
+        Log("[RenderGuard] %ld invalid AsyncTextureWait calls SUPPRESSED (m_asyncObject wild/0xFFFFFFFF sanitized to null)",
+            (long)g_asyncWaitSuppressed);
+    }
 }
+
