@@ -19,7 +19,7 @@ The current public build is focused on real frametime stability, long-session sm
 ---
 
 ## Table of Contents
-* [What's New in v3.23.0](#whats-new-in-v3230)
+* [What's New in v3.23.1](#whats-new-in-v3231)
 * [Send me your log](#send-me-your-log)
   * [Measuring rather than reporting](#if-you-want-to-measure-something-rather-than-report-a-bug)
 * [Reviews & Acknowledgments](#reviews)
@@ -34,35 +34,30 @@ The current public build is focused on real frametime stability, long-session sm
 
 ---
 
-## What's New in v3.23.0
+## What's New in v3.23.1
 
-### Server Compatibility
+### Crash Prevention & Engine Stability
 
-* **WoW Circle Integrity Synchronization (`ServerSyncCompat`).**
-  Players on WoW Circle can now run the optimizer with all performance improvements active
-  without being disconnected or kicked.
-  * **How to use:** Enable **ServerSyncCompat** in the launcher dashboard (or set
-    `ServerSyncCompat=1` in `WTF\wow_opt.ini` under `[General]`).
+* **Mass Combat UI Texture Guard (`sub_4B6CB0` / `TextureGetGxTex`).**
+  Fixed an `Error #132 (0x85100084) Fatal Exception` (`0x004B6D26` reading from `0x00000001`) during mass combat on Battlegrounds (Isle of Conquest). When UI frame batches reference released or uninitialized memory filled with `0xFFFFFFFF`, the engine's atlas lookup is now intercepted and safely converted to a null texture bind instead of dereferencing the null page.
+* **Font Glyph Loading Protection (`sub_992DA0`).**
+  Fixed an Error #132 crash branching to `0x00000000` (EIP = 0) occurring upon zoning into Battlegrounds, arenas, or dungeons when displaying custom font glyphs or Cyrillic characters where the font driver lacks a registered rasterizer callback. The unvalidated callback is now guarded, returning standard FreeType fallback codes so the engine draws a fallback symbol without crashing.
+* **Asynchronous File Reader Re-entrancy Fix (`sub_4BA060` / `AsyncFileReadWait`).**
+  Fixed an `Error #134 (0x85100086) Fatal Condition: AsyncFileReadWait(): s_waiting != FALSE` crash that occurred during heavy asset streaming combined with high combat log throughput. Eliminated recursive file reader waits from background frame pump routines.
+* **WMO Group Bounds & Startup Culling (`sub_7AE880` / `WmoGroupBoundsFast`).**
+  Fixed an access violation at `0x000001D3` occurring when logging into zones like Isle of Quel'Danas where unallocated WMO group entries contain numeric index markers instead of allocated heap pointers.
+* **Addon & External Frame Tracking Guard (`sub_4F5980` / `CGWorldFrame::HandleSpriteTrack`).**
+  Fixed a crash in raids (e.g. Icecrown Citadel) where third-party overlays and detours clobbered the `ECX` `this` pointer with player GUIDs; the canonical singleton `s_worldFrame` is now automatically validated and restored.
 
-### Performance & Loading Screens
 
-* **Faster Loading Screens (File Reader Polling Spin).** `AsyncPollSpin` (off by default)
-  replaces the file reader's 1 ms sleep polling with microsecond spin-waits inside loading
-  screens.
-* **Secondary asynchronous reader thread.** `AsyncSecondaryReader` (off by default)
-  spawns a second worker on the client's asynchronous file queue for faster asset streaming.
-* **Startup & loading time reductions.** Cut the 100 ms network start sleep, skipped
-  the client's frame limiter sleep during loading screens, and shortened the 250 ms startup
-  clock check.
+### Performance & Multi-Threading
 
-### Launcher Quality of Life
-
-* **Settings auto-save.** Changes to checkboxes in the launcher dashboard now auto-save
-  immediately and upon closing the application.
-* **Configurable logs and crash dumps directory.** Users can now specify a custom output
-  folder for logs and crash dumps instead of the fixed `Logs\` and `Crashes\` folders.
-* **Improved search and tabs.** Retains caret focus in the launcher search box and finds
-  pasted feature names across tabs.
+* **Procedural Sky & Clouds Acceleration (`SkyCloudTexels`).**
+  Main-thread procedural cloud texture generation is now accelerated and armed, bypassing stock client x87 loops.
+* **Parallel Child Model Animations (`AnimateAttachmentsMT`).**
+  Distributes attached child M2 model animations across worker threads in the animation subsystem.
+* **Scalable File Reader Pool (`AsyncSecondaryReader`).**
+  Scales asynchronous file reader worker threads up to 4 threads on multi-core CPUs.
 
 ### After updating
 
