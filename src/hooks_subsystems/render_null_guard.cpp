@@ -321,10 +321,124 @@ __declspec(naked) static void Hooked_4F5980() {
     }
 }
 
+// ----------------------------------------------------------------------------
+// FreeType Glyph Rasterizer guard (sub_992DA0 @ 0x00992DA0)
+//
+// In stock 3.3.5a build 12340, sub_992DA0 dispatches TrueType/bitmap glyph rendering.
+// When rendering font glyphs (such as Cyrillic / custom UI fonts loaded when
+// entering a Battleground or displaying addon scoreboard frames), the client
+// evaluates whether an outline rasterizer exists or falls back to the default
+// rasterizer callback at:
+//     0x00992E49: mov ecx, [ecx+14h]   ; rasterizer driver/class table
+//     0x00992E4C: mov ecx, [ecx+50h]   ; raster_render callback function pointer
+//     0x00992E4F: push ebx             ; load flags (e.g. 0x208A)
+//     0x00992E50: push edx             ; glyph index (e.g. 0x6C)
+//     0x00992E51: push eax             ; face metrics/size pointer
+//     0x00992E52: push esi             ; glyph slot pointer
+//     0x00992E53: call ecx             ; UNGUARDED call! If ecx is null -> crash at 0x0
+//
+// If a font format does not provide a registered raster_render callback or the
+// driver table has a null callback pointer, ecx is 0x00000000. Stock WoW executes
+// "call ecx" unconditionally without checking "test ecx, ecx", immediately crashing
+// the process with ERROR #132 (0x85100084) Fatal Exception (ACCESS_VIOLATION at 0023:00000000).
+//
+// Guard:
+// - Check if face object, size, and slot pointers are valid; if not, return 35 (0x23).
+// - Inspect the driver table at [face+0x60].
+// - If the outline renderer path will be taken, verify the outline callback [altTable+4].
+// - If the rasterizer path will be taken, verify the raster_render callback [rTable+0x50].
+// - If the selected callback is null or outside valid address space [0x10000, 0xFFFE0000),
+//   increment g_nullGlyphRasterizerSuppressed and return 35 (FT_Err_Cannot_Render_Glyph /
+//   unsupported format error code in FreeType).
+// - Callers (sub_6C8C10, GxuLoadGlyph, etc.) receive non-zero error code and return
+//   false to the UI/rendering subsystem, safely rendering the fallback glyph instead
+//   of crashing the game client.
+// ----------------------------------------------------------------------------
+
+static constexpr uintptr_t kTarget992DA0 = 0x00992DA0;
+static const unsigned char kExpectedPrologue992DA0[9] = {
+    0x55, 0x8B, 0xEC, 0x51, 0x56, 0x57, 0x8B, 0x7D, 0x08
+};
+
+typedef int (__cdecl* GlyphRasterize_fn)(int a1, unsigned int a2, unsigned int a3);
+static GlyphRasterize_fn g_orig992DA0 = nullptr;
+static volatile LONG g_nullGlyphRasterizerSuppressed = 0;
+static bool g_guard992DA0Active = false;
+
+__declspec(safebuffers) static int __cdecl Hooked_992DA0(int a1, unsigned int a2, unsigned int a3) {
+    if (!a1 || (uintptr_t)a1 < 0x10000 || (uintptr_t)a1 >= 0xFFFE0000) {
+        return 35;
+    }
+
+    uintptr_t sizeObj = *(uintptr_t*)(a1 + 0x58);
+    uintptr_t slotObj = *(uintptr_t*)(a1 + 0x54);
+    if (!sizeObj || sizeObj < 0x10000 || sizeObj >= 0xFFFE0000 ||
+        !slotObj || slotObj < 0x10000 || slotObj >= 0xFFFE0000) {
+        return 35;
+    }
+
+    uintptr_t driver = *(uintptr_t*)(a1 + 0x60);
+    if (driver < 0x10000 || driver >= 0xFFFE0000) {
+        InterlockedIncrement(&g_nullGlyphRasterizerSuppressed);
+        return 35;
+    }
+
+    // Determine whether Path A (outline renderer) or Path B (raster_render) is selected
+    bool pathA = false;
+    uintptr_t pClazz = *(uintptr_t*)(driver + 4);
+    if (pClazz >= 0x10000 && pClazz < 0xFFFE0000) {
+        uintptr_t v8 = *(uintptr_t*)(pClazz + 0x5C);
+        if (v8 != 0 && (a3 & 3) == 0) {
+            uintptr_t pV7_0 = *(uintptr_t*)driver;
+            if (pV7_0 >= 0x10000 && pV7_0 < 0xFFFE0000) {
+                uintptr_t v9 = *(uintptr_t*)pV7_0;
+                if ((v9 & 0x100) != 0 && (v9 & 0x200) == 0 &&
+                    (((v9 & 0x400) == 0) || ((a3 & 0x20) != 0))) {
+                    pathA = true;
+                    if (v8 < 0x10000 || v8 >= 0xFFFE0000) {
+                        InterlockedIncrement(&g_nullGlyphRasterizerSuppressed);
+                        return 35;
+                    }
+                    uintptr_t altEcX = *(uintptr_t*)v8;
+                    if (altEcX < 0x10000 || altEcX >= 0xFFFE0000) {
+                        InterlockedIncrement(&g_nullGlyphRasterizerSuppressed);
+                        return 35;
+                    }
+                    uintptr_t altTable = *(uintptr_t*)(altEcX + 0x14);
+                    if (altTable < 0x10000 || altTable >= 0xFFFE0000) {
+                        InterlockedIncrement(&g_nullGlyphRasterizerSuppressed);
+                        return 35;
+                    }
+                    void* altRenderFn = *(void**)(altTable + 4);
+                    if (!altRenderFn || (uintptr_t)altRenderFn < 0x10000 || (uintptr_t)altRenderFn >= 0xFFFE0000) {
+                        InterlockedIncrement(&g_nullGlyphRasterizerSuppressed);
+                        return 35;
+                    }
+                }
+            }
+        }
+    }
+
+    if (!pathA) {
+        uintptr_t rTable = *(uintptr_t*)(driver + 0x14);
+        if (rTable < 0x10000 || rTable >= 0xFFFE0000) {
+            InterlockedIncrement(&g_nullGlyphRasterizerSuppressed);
+            return 35;
+        }
+        void* renderFn = *(void**)(rTable + 0x50);
+        if (!renderFn || (uintptr_t)renderFn < 0x10000 || (uintptr_t)renderFn >= 0xFFFE0000) {
+            InterlockedIncrement(&g_nullGlyphRasterizerSuppressed);
+            return 35;
+        }
+    }
+
+    return g_orig992DA0(a1, a2, a3);
+}
+
 bool InstallRenderNullGuard()
 {
     if (!Config::g_settings.OptRenderNullGuard) {
-        Log("[RenderGuard] DISABLED via configuration - sub_873060, sub_4B6550 and sub_4F5980 run unguarded");
+        Log("[RenderGuard] DISABLED via configuration - sub_873060, sub_4B6550, sub_4BA060, sub_4F5980 and sub_992DA0 run unguarded");
         return true;
     }
 
@@ -395,6 +509,21 @@ bool InstallRenderNullGuard()
         }
     }
 
+    void* target992DA0 = (void*)kTarget992DA0;
+    if (WowOpt_ClientPatchAllowed(target992DA0)) {
+        if (memcmp(target992DA0, kExpectedPrologue992DA0, sizeof(kExpectedPrologue992DA0)) == 0) {
+            if (MH_CreateHook(target992DA0, (void*)Hooked_992DA0, (void**)&g_orig992DA0) == MH_OK &&
+                MH_EnableHook(target992DA0) == MH_OK) {
+                g_guard992DA0Active = true;
+                Log("[RenderGuard] GlyphRasterizer guard ACTIVE on sub_992DA0 @ 0x%08X", (unsigned)kTarget992DA0);
+            } else {
+                Log("[RenderGuard] MH_CreateHook FAILED for 0x%08X", (unsigned)kTarget992DA0);
+            }
+        } else {
+            Log("[RenderGuard] BAD PROLOGUE at 0x%08X", (unsigned)kTarget992DA0);
+        }
+    }
+
     return true;
 }
 
@@ -447,6 +576,12 @@ void RenderNullGuard_LogStats()
         Log("[RenderGuard] %ld WorldFrame HandleSpriteTrack calls recovered (valid s_worldFrame restored), %ld suppressed",
             (long)g_worldFrameRecovered, (long)g_worldFrameSuppressed);
     }
+
+    if (g_nullGlyphRasterizerSuppressed > 0) {
+        Log("[RenderGuard] %ld null FreeType glyph rasterizer calls SUPPRESSED on sub_992DA0 (Error #132 EIP=0 prevented)",
+            (long)g_nullGlyphRasterizerSuppressed);
+    }
 }
+
 
 
