@@ -175,6 +175,9 @@ __declspec(naked) static void Hooked_4B6550() {
         cmp esi, 0xFFFE0000
         jae skip_wait
 
+        cmp dword ptr [esi], 0xFFFFFFFF
+        je skip_wait
+
         mov eax, [esi + 0x40]
         test eax, eax
         jz skip_wait
@@ -195,6 +198,18 @@ __declspec(naked) static void Hooked_4B6550() {
 
     sanitize_and_skip:
         mov dword ptr [esi + 0x40], 0
+        cmp dword ptr [esi + 0x5C], 0x10000
+        jb check_gxtex
+        cmp dword ptr [esi + 0x5C], 0xFFFE0000
+        jb check_gxtex
+        mov dword ptr [esi + 0x5C], 0
+    check_gxtex:
+        cmp dword ptr [esi + 0x44], 0x10000
+        jb finish_sanitize
+        cmp dword ptr [esi + 0x44], 0xFFFE0000
+        jb finish_sanitize
+        mov dword ptr [esi + 0x44], 0
+    finish_sanitize:
         inc dword ptr [g_asyncWaitSuppressed]
         ret
 
@@ -204,6 +219,77 @@ __declspec(naked) static void Hooked_4B6550() {
     skip_wait:
         ret
     }
+}
+
+// ----------------------------------------------------------------------------
+// TextureGetGxTex guard (sub_4B6CB0 @ 0x004B6CB0)
+//
+// In stock 3.3.5a build 12340, TextureGetGxTex (sub_4B6CB0) is called from M2
+// rendering, terrain rendering, spell effects, and UI batch rendering (sub_484B00)
+// to obtain the active CGxTex surface pointer.
+//
+// When a texture object has been freed, uninitialized, or filled with 0xFFFFFFFF,
+// or when an asynchronous texture load failed leaving wild pointers in m_atlas
+// (+0x5C) or m_gxTex (+0x44), the stock client executes:
+//     0x004B6D1F: mov ecx, [esi+5Ch]
+//     0x004B6D22: test ecx, ecx
+//     0x004B6D24: jz short loc_4B6D3C
+//     0x004B6D26: test byte ptr [ecx+2], 1  ; CRASH if ecx is 0xFFFFFFFF!
+//
+// If ecx is 0xFFFFFFFF, reading [ecx+2] accesses address 0x00000001, crashing
+// with ERROR #132 (0x85100084) Fatal Exception (ACCESS_VIOLATION at 0023:004B6D26).
+//
+// Guard:
+// - If texture is null or outside valid address space [0x10000, 0xFFFE0000), return nullptr.
+// - If texture is marked freed/dead (*(const uintptr_t*)texture == 0xFFFFFFFF), return nullptr.
+// - Sanitize wild/0xFFFFFFFF fields in m_asyncObject (+0x40), m_atlas (+0x5C), and
+//   m_gxTex (+0x44) to nullptr.
+// - Forwards safely to original sub_4B6CB0 (which gracefully returns nullptr to
+//   the caller without crashing).
+// ----------------------------------------------------------------------------
+
+static constexpr uintptr_t kTarget4B6CB0 = 0x004B6CB0;
+static const unsigned char kExpectedPrologue4B6CB0[9] = {
+    0x55, 0x8B, 0xEC, 0x56, 0x8B, 0x75, 0x08, 0x85, 0xF6
+};
+
+typedef void* (__cdecl* TextureGetGxTex_fn)(void* texture, int wait, void* status);
+static TextureGetGxTex_fn g_orig4B6CB0 = nullptr;
+static volatile LONG g_textureWildSanitized = 0;
+static bool g_guard4B6CB0Active = false;
+
+__declspec(safebuffers) static void* __cdecl Hooked_4B6CB0(void* texture, int wait, void* status) {
+    if (!texture || (uintptr_t)texture < 0x10000 || (uintptr_t)texture >= 0xFFFE0000) {
+        return nullptr;
+    }
+
+    if (*(const uintptr_t*)texture == 0xFFFFFFFF) {
+        InterlockedIncrement(&g_textureWildSanitized);
+        return nullptr;
+    }
+
+    uintptr_t* pAsync = (uintptr_t*)((uintptr_t)texture + 0x40);
+    uintptr_t* pGxTex = (uintptr_t*)((uintptr_t)texture + 0x44);
+    uintptr_t* pAtlas = (uintptr_t*)((uintptr_t)texture + 0x5C);
+
+    bool sanitized = false;
+    if (*pAsync && (*pAsync < 0x10000 || *pAsync >= 0xFFFE0000)) {
+        *pAsync = 0;
+        sanitized = true;
+    }
+    if (*pAtlas && (*pAtlas < 0x10000 || *pAtlas >= 0xFFFE0000)) {
+        *pAtlas = 0;
+        sanitized = true;
+    }
+    if (*pGxTex && (*pGxTex < 0x10000 || *pGxTex >= 0xFFFE0000)) {
+        *pGxTex = 0;
+        sanitized = true;
+    }
+    if (sanitized) {
+        InterlockedIncrement(&g_textureWildSanitized);
+    }
+
+    return g_orig4B6CB0(texture, wait, status);
 }
 
 // ----------------------------------------------------------------------------
@@ -438,7 +524,7 @@ __declspec(safebuffers) static int __cdecl Hooked_992DA0(int a1, unsigned int a2
 bool InstallRenderNullGuard()
 {
     if (!Config::g_settings.OptRenderNullGuard) {
-        Log("[RenderGuard] DISABLED via configuration - sub_873060, sub_4B6550, sub_4BA060, sub_4F5980 and sub_992DA0 run unguarded");
+        Log("[RenderGuard] DISABLED via configuration - sub_873060, sub_4B6550, sub_4B6CB0, sub_4BA060, sub_4F5980 and sub_992DA0 run unguarded");
         return true;
     }
 
@@ -476,6 +562,21 @@ bool InstallRenderNullGuard()
             }
         } else {
             Log("[RenderGuard] BAD PROLOGUE at 0x%08X", (unsigned)kTarget4B6550);
+        }
+    }
+
+    void* target4B6CB0 = (void*)kTarget4B6CB0;
+    if (!Config::g_settings.OptTextureGetGxTexFast && WowOpt_ClientPatchAllowed(target4B6CB0)) {
+        if (memcmp(target4B6CB0, kExpectedPrologue4B6CB0, sizeof(kExpectedPrologue4B6CB0)) == 0) {
+            if (MH_CreateHook(target4B6CB0, (void*)Hooked_4B6CB0, (void**)&g_orig4B6CB0) == MH_OK &&
+                MH_EnableHook(target4B6CB0) == MH_OK) {
+                g_guard4B6CB0Active = true;
+                Log("[RenderGuard] TextureGetGxTex guard ACTIVE on sub_4B6CB0 @ 0x%08X", (unsigned)kTarget4B6CB0);
+            } else {
+                Log("[RenderGuard] MH_CreateHook FAILED for 0x%08X", (unsigned)kTarget4B6CB0);
+            }
+        } else {
+            Log("[RenderGuard] BAD PROLOGUE at 0x%08X", (unsigned)kTarget4B6CB0);
         }
     }
 
@@ -580,6 +681,11 @@ void RenderNullGuard_LogStats()
     if (g_nullGlyphRasterizerSuppressed > 0) {
         Log("[RenderGuard] %ld null FreeType glyph rasterizer calls SUPPRESSED on sub_992DA0 (Error #132 EIP=0 prevented)",
             (long)g_nullGlyphRasterizerSuppressed);
+    }
+
+    if (g_textureWildSanitized > 0) {
+        Log("[RenderGuard] %ld corrupted/freed texture lookups SANITIZED in TextureGetGxTex (sub_4B6CB0 @ 0x004B6D26 prevented)",
+            (long)g_textureWildSanitized);
     }
 }
 
