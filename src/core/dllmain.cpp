@@ -2359,6 +2359,10 @@ static void MainThreadPump() {
     ++g_pumpRuns;
     UpdateMainThreadActivity();
 
+#if HAVE_SERVER_SYNC_COMPAT
+    ServerSyncCompat::TickDuringLoading();
+#endif
+
     // Runs Lua, so it belongs here and nowhere else, and not while the interface
     // is between states. It self-throttles to once a minute.
     AddonProfiler::OnFrame(LuaOpt::IsLoadingMode() || LuaOpt::IsReloading() ||

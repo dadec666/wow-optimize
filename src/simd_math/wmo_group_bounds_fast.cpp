@@ -99,9 +99,17 @@ uint64_t g_verified = 0;
 constexpr uint32_t kVerifyFirst = 20000;
 constexpr uint32_t kResampleMask = 127;
 
+static __forceinline bool IsValidUserPtr(const void* p) {
+    return (uintptr_t)p >= 0x10000 && (uintptr_t)p <= 0xFFFE0000;
+}
+
 __declspec(safebuffers) static inline int FastEvaluate(
     const void* self, const float* start, const float* end, uint32_t groupNum)
 {
+    if (!IsValidUserPtr(self) || !start || !end) {
+        return 0;
+    }
+
     // Bounds check groupNum against static capacity (512 groups)
     if (groupNum >= 512) {
         return 0;
@@ -117,13 +125,14 @@ __declspec(safebuffers) static inline int FastEvaluate(
     const char* const* groupArray = (const char* const*)((const char*)self + 0x1F8);
     const char* group = groupArray[groupNum];
     // Offset 0x198 on CMapObjGroup: m_unkLoadedFlag (uint32_t, bit 1 indicates loaded)
-    if (!group || !(*(const uint8_t*)(group + 0x198) & 1)) {
+    // If pointer is unallocated/index marker (< 0x10000) or loaded flag bit 1 is not set:
+    if (!IsValidUserPtr(group) || !(*(const uint8_t*)(group + 0x198) & 1)) {
         return 13;
     }
 
     // Offset 0x130: m_groupInfo (array of 32-byte structs)
     const char* groupInfo = *(const char**)((const char*)self + 0x130);
-    if (!groupInfo) {
+    if (!IsValidUserPtr(groupInfo)) {
         return 0;
     }
     // groupInfo + (groupNum * 32) + 4 is m_boundingBox (6 floats: minX, minY, minZ, maxX, maxY, maxZ)
@@ -157,16 +166,28 @@ __declspec(safebuffers) static int __fastcall Hook_TestGroupBounds(
     void* self, void* edx,
     const float* start, const float* end, uint32_t groupNum)
 {
-    if (g_dead) {
+    if (g_dead || !IsValidUserPtr(self)) {
         return g_orig(self, edx, start, end, groupNum);
     }
 
     const uint64_t callIdx = g_calls++;
     const bool verify = (callIdx < kVerifyFirst) || ((callIdx & kResampleMask) == 0);
 
+    int decision = FastEvaluate(self, start, end, groupNum);
+
     if (verify) {
+        // If the group pointer in m_mapObjGroupArray is not a valid allocated object
+        // (i.e. group holds an integer index / unallocated marker), the client's sub_7AE880
+        // has no pointer validation and would crash on `test byte ptr [group + 198h], 1`.
+        // In that state the group is mathematically not loaded, so return 0 without invoking g_orig.
+        const char* const* groupArray = (groupNum < 512) ? (const char* const*)((const char*)self + 0x1F8) : nullptr;
+        const char* group = groupArray ? groupArray[groupNum] : nullptr;
+        if (!IsValidUserPtr(group)) {
+            if (decision == 13) ++g_culledNotLoaded;
+            return 0;
+        }
+
         int clientRes = (g_orig(self, edx, start, end, groupNum) != 0) ? 1 : 0;
-        int decision = FastEvaluate(self, start, end, groupNum);
         int fastRes = (decision != -1) ? 0 : clientRes;
 
         if (fastRes != clientRes) {
@@ -179,7 +200,6 @@ __declspec(safebuffers) static int __fastcall Hook_TestGroupBounds(
         return clientRes;
     }
 
-    int decision = FastEvaluate(self, start, end, groupNum);
     if (decision != -1) {
         if (decision == 10) ++g_culledAxisX;
         else if (decision == 11) ++g_culledAxisY;
