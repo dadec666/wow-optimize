@@ -154,25 +154,39 @@ bool RunStartupSelfTest() {
     // Fast path evaluation function matching Hooked_TextureGetGxTex logic
     auto TryFast = [](void* t, uint8_t streaming) -> void* {
         if ((uintptr_t)t >= 0x10000 && (uintptr_t)t < 0xFFFE0000) {
+            if (*(const uintptr_t*)t == 0xFFFFFFFF) {
+                return nullptr;
+            }
+
             void* asyncObj = *(void**)((uintptr_t)t + 0x40);
             if (asyncObj && ((uintptr_t)asyncObj < 0x10000 || (uintptr_t)asyncObj >= 0xFFFE0000)) {
                 *(void**)((uintptr_t)t + 0x40) = nullptr;
             }
 
+            void* atlas = *(void**)((uintptr_t)t + 0x5C);
+            if (atlas && ((uintptr_t)atlas < 0x10000 || (uintptr_t)atlas >= 0xFFFE0000)) {
+                *(void**)((uintptr_t)t + 0x5C) = nullptr;
+                atlas = nullptr;
+            }
+
+            void* gxTex = *(void**)((uintptr_t)t + 0x44);
+            if (gxTex && ((uintptr_t)gxTex < 0x10000 || (uintptr_t)gxTex >= 0xFFFE0000)) {
+                *(void**)((uintptr_t)t + 0x44) = nullptr;
+                gxTex = nullptr;
+            }
+
             const uint16_t f = *(const uint16_t*)((uintptr_t)t + 0x28);
             if ((f & 4) == 0) {
-                void* g = *(void**)((uintptr_t)t + 0x44);
-                if (g && streaming == 0) {
-                    return g;
+                if (gxTex && streaming == 0) {
+                    return gxTex;
                 }
             } else {
-                void* atlas = *(void**)((uintptr_t)t + 0x5C);
-                if ((uintptr_t)atlas >= 0x10000 && (uintptr_t)atlas < 0xFFFE0000) {
+                if (atlas) {
                     const uint16_t dirty = *(const uint16_t*)((uintptr_t)atlas + 2);
                     if ((dirty & 1) == 0 && *(void**)((uintptr_t)t + 0x40) == nullptr) {
-                        void* gxTex = *(void**)((uintptr_t)atlas + 0x18);
-                        if (gxTex) {
-                            return gxTex;
+                        void* aGxTex = *(void**)((uintptr_t)atlas + 0x18);
+                        if (aGxTex) {
+                            return aGxTex;
                         }
                     }
                 }
@@ -206,28 +220,42 @@ __declspec(safebuffers) void* __cdecl Hooked_TextureGetGxTex(void* texture, int 
     bool canFast = false;
 
     if ((uintptr_t)texture >= 0x10000 && (uintptr_t)texture < 0xFFFE0000) {
+        if (*(const uintptr_t*)texture == 0xFFFFFFFF) {
+            return nullptr;
+        }
+
         // Sanitize corrupted asyncObject if present (e.g. 0xFFFFFFFF)
         void* asyncObj = *(void**)((uintptr_t)texture + 0x40);
         if (asyncObj && ((uintptr_t)asyncObj < 0x10000 || (uintptr_t)asyncObj >= 0xFFFE0000)) {
             *(void**)((uintptr_t)texture + 0x40) = nullptr;
         }
 
+        void* atlas = *(void**)((uintptr_t)texture + 0x5C);
+        if (atlas && ((uintptr_t)atlas < 0x10000 || (uintptr_t)atlas >= 0xFFFE0000)) {
+            *(void**)((uintptr_t)texture + 0x5C) = nullptr;
+            atlas = nullptr;
+        }
+
+        void* gxTex = *(void**)((uintptr_t)texture + 0x44);
+        if (gxTex && ((uintptr_t)gxTex < 0x10000 || (uintptr_t)gxTex >= 0xFFFE0000)) {
+            *(void**)((uintptr_t)texture + 0x44) = nullptr;
+            gxTex = nullptr;
+        }
+
         const uint16_t flags = *(const uint16_t*)((uintptr_t)texture + 0x28);
         if ((flags & 4) == 0) {
-            void* gxTex = *(void**)((uintptr_t)texture + 0x44);
             if (gxTex && *(const uint8_t*)kStreamingModeGlobal == 0) {
                 candidate = gxTex;
                 canFast = true;
             }
         } else {
             // Atlas texture fast-path: resident and not dirty, no pending async
-            void* atlas = *(void**)((uintptr_t)texture + 0x5C);
-            if ((uintptr_t)atlas >= 0x10000 && (uintptr_t)atlas < 0xFFFE0000) {
+            if (atlas) {
                 const uint16_t dirty = *(const uint16_t*)((uintptr_t)atlas + 2);
                 if ((dirty & 1) == 0 && *(void**)((uintptr_t)texture + 0x40) == nullptr) {
-                    void* gxTex = *(void**)((uintptr_t)atlas + 0x18);
-                    if (gxTex) {
-                        candidate = gxTex;
+                    void* aGxTex = *(void**)((uintptr_t)atlas + 0x18);
+                    if (aGxTex) {
+                        candidate = aGxTex;
                         canFast = true;
                     }
                 }
