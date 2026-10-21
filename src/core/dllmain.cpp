@@ -2359,6 +2359,13 @@ static void MainThreadPump() {
     ++g_pumpRuns;
     UpdateMainThreadActivity();
 
+    // Never pump frame-level logic, Lua ticks, or maintenance while the main thread
+    // is blocked inside AsyncFileReadWait (s_waiting != 0 at 0x00B4A26C). The engine
+    // is suspended waiting on an unresolved file read and is not at a frame boundary.
+    if (*(const uint32_t*)0x00B4A26C != 0) {
+        return;
+    }
+
 #if HAVE_SERVER_SYNC_COMPAT
     ServerSyncCompat::TickDuringLoading();
 #endif

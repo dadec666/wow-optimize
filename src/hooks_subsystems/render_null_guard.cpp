@@ -165,6 +165,7 @@ static const unsigned char kExpectedPrologue4B6550[8] = {
 
 static void* g_orig4B6550 = nullptr;
 static volatile LONG g_asyncWaitSuppressed = 0;
+static volatile LONG g_asyncReentrantWaitSuppressed = 0;
 static bool g_guard4B6550Active = false;
 
 __declspec(naked) static void Hooked_4B6550() {
@@ -183,15 +184,74 @@ __declspec(naked) static void Hooked_4B6550() {
         cmp eax, 0xFFFE0000
         jae sanitize_and_skip
 
+        // If s_waiting != 0 (at 0x00B4A26C), AsyncFileReadWait is already active!
+        // Calling sub_4BA060 will trigger the fatal assertion "AsyncFileReadWait(): s_waiting != FALSE".
+        // Skip the blocking wait and return safely.
+        mov edx, 0x00B4A26C
+        cmp dword ptr [edx], 0
+        jnz reentrant_skip
+
         jmp dword ptr [g_orig4B6550]
 
     sanitize_and_skip:
         mov dword ptr [esi + 0x40], 0
         inc dword ptr [g_asyncWaitSuppressed]
+        ret
+
+    reentrant_skip:
+        inc dword ptr [g_asyncReentrantWaitSuppressed]
 
     skip_wait:
         ret
     }
+}
+
+// ----------------------------------------------------------------------------
+// AsyncFileReadWait guard (sub_4BA060 @ 0x004BA060)
+//
+// In stock 3.3.5a build 12340, AsyncFileReadWait (sub_4BA060) waits for pending
+// asynchronous file reads (textures, models, WMOs, sounds, DBCs).
+// It maintains a global re-entrancy flag s_waiting (at 0x00B4A26C) and a single
+// global request pointer dword_B4A204.
+// If sub_4BA060 is called while s_waiting is already non-zero, it executes:
+//     sub_772AA0("AsyncFileReadWait(): s_waiting != FALSE", ...);
+// immediately terminating the process with ERROR #134 (0x85100086) Fatal Condition.
+//
+// Guard:
+// - If req is null or outside valid address space [0x10000, 0xFFFE0000), return 0.
+// - If req is already completed (*((const uint8_t*)req + 0x21) != 0), return 1.
+// - If s_waiting != 0 (*(const uint32_t*)0x00B4A26C != 0), a wait is already active!
+//   Calling the client's sub_4BA060 would trigger the fatal Error #134 condition.
+//   We suppress the recursive wait, increment g_fileWaitReentrantSuppressed, and
+//   return immediately.
+// ----------------------------------------------------------------------------
+
+static constexpr uintptr_t kTarget4BA060 = 0x004BA060;
+static const unsigned char kExpectedPrologue4BA060[9] = {
+    0x55, 0x8B, 0xEC, 0x81, 0xEC, 0x00, 0x01, 0x00, 0x00
+};
+
+typedef int (__cdecl* AsyncFileReadWait_fn)(void* req);
+static AsyncFileReadWait_fn g_orig4BA060 = nullptr;
+static volatile LONG g_fileWaitReentrantSuppressed = 0;
+static bool g_guard4BA060Active = false;
+
+__declspec(safebuffers) static int __cdecl Hooked_4BA060(void* req) {
+    if (!req || (uintptr_t)req < 0x10000 || (uintptr_t)req >= 0xFFFE0000) {
+        return 0;
+    }
+
+    // Offset +0x21 is isComplete in the AsyncObject
+    if (*((const uint8_t*)req + 0x21) != 0) {
+        return 1;
+    }
+
+    if (*(const uint32_t*)0x00B4A26C != 0) {
+        InterlockedIncrement(&g_fileWaitReentrantSuppressed);
+        return *((const uint8_t*)req + 0x21) != 0 ? 1 : 0;
+    }
+
+    return g_orig4BA060(req);
 }
 
 // ----------------------------------------------------------------------------
@@ -320,6 +380,21 @@ bool InstallRenderNullGuard()
         }
     }
 
+    void* target4BA060 = (void*)kTarget4BA060;
+    if (WowOpt_ClientPatchAllowed(target4BA060)) {
+        if (memcmp(target4BA060, kExpectedPrologue4BA060, sizeof(kExpectedPrologue4BA060)) == 0) {
+            if (MH_CreateHook(target4BA060, (void*)Hooked_4BA060, (void**)&g_orig4BA060) == MH_OK &&
+                MH_EnableHook(target4BA060) == MH_OK) {
+                g_guard4BA060Active = true;
+                Log("[RenderGuard] AsyncFileReadWait guard ACTIVE on sub_4BA060 @ 0x%08X", (unsigned)kTarget4BA060);
+            } else {
+                Log("[RenderGuard] MH_CreateHook FAILED for 0x%08X", (unsigned)kTarget4BA060);
+            }
+        } else {
+            Log("[RenderGuard] BAD PROLOGUE at 0x%08X", (unsigned)kTarget4BA060);
+        }
+    }
+
     return true;
 }
 
@@ -342,21 +417,30 @@ void RenderNullGuard_LogStats()
         Log("[RenderGuard] %lld draw-path calls, none suppressed - the three "
             "null conditions it exists for did not occur. Counts are lower "
             "bounds.", (long long)g_calls);
-        return;
+    } else {
+        // Worth saying loudly. Each suppressed call is a model drawn with whatever
+        // parameters the previous one left behind.
+        Log("[RenderGuard] %lld of %lld draw-path calls SUPPRESSED (%.3f%%) - each one "
+            "is a model drawn with the previous model's parameters",
+            g_suppressed, g_calls, (double)g_suppressed * 100.0 / (double)g_calls);
+        Log("[RenderGuard]   parameter table null: %lld   CGxDevice null: %lld   "
+            "D3D9 device not ready: %lld",
+            g_noParamTable, g_noGxDevice, g_deviceNotReady);
     }
-
-    // Worth saying loudly. Each suppressed call is a model drawn with whatever
-    // parameters the previous one left behind.
-    Log("[RenderGuard] %lld of %lld draw-path calls SUPPRESSED (%.3f%%) - each one "
-        "is a model drawn with the previous model's parameters",
-        g_suppressed, g_calls, (double)g_suppressed * 100.0 / (double)g_calls);
-    Log("[RenderGuard]   parameter table null: %lld   CGxDevice null: %lld   "
-        "D3D9 device not ready: %lld",
-        g_noParamTable, g_noGxDevice, g_deviceNotReady);
 
     if (g_asyncWaitSuppressed > 0) {
         Log("[RenderGuard] %ld invalid AsyncTextureWait calls SUPPRESSED (m_asyncObject wild/0xFFFFFFFF sanitized to null)",
             (long)g_asyncWaitSuppressed);
+    }
+
+    if (g_asyncReentrantWaitSuppressed > 0) {
+        Log("[RenderGuard] %ld re-entrant AsyncTextureWait calls avoided while AsyncFileReadWait active (s_waiting != FALSE)",
+            (long)g_asyncReentrantWaitSuppressed);
+    }
+
+    if (g_fileWaitReentrantSuppressed > 0) {
+        Log("[RenderGuard] %ld re-entrant AsyncFileReadWait calls avoided while s_waiting active (Error #134 prevented)",
+            (long)g_fileWaitReentrantSuppressed);
     }
 
     if (g_worldFrameRecovered > 0 || g_worldFrameSuppressed > 0) {

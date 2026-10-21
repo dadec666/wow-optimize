@@ -380,7 +380,7 @@ void __cdecl Hooked_OsSleep(DWORD ms) {
         g_orig(ms);
         return;
     }
-    if (site != kSiteWorker) WowOpt_MainThreadPump();    // what the Sleep hook does for the main thread
+    if (site != kSiteWorker && site != kSiteFileWait) WowOpt_MainThreadPump();    // what the Sleep hook does for the main thread
     SpinFor(kSliceUs);
     e.spunUs += kSliceUs;
     e.lastTick = Now();
