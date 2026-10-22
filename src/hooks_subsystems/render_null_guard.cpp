@@ -442,8 +442,8 @@ __declspec(naked) static void Hooked_4F5980() {
 // ----------------------------------------------------------------------------
 
 static constexpr uintptr_t kTarget992DA0 = 0x00992DA0;
-static const unsigned char kExpectedPrologue992DA0[9] = {
-    0x55, 0x8B, 0xEC, 0x51, 0x56, 0x57, 0x8B, 0x7D, 0x08
+static const unsigned char kExpectedPrologue992DA0[6] = {
+    0x55, 0x8B, 0xEC, 0x51, 0x56, 0x57
 };
 
 typedef int (__cdecl* GlyphRasterize_fn)(int a1, unsigned int a2, unsigned int a3);
@@ -570,6 +570,78 @@ __declspec(safebuffers) static int __cdecl Hooked_992DA0(int a1, unsigned int a2
     return g_orig992DA0(a1, a2, a3);
 }
 
+// ----------------------------------------------------------------------------
+// FreeType FT_Get_Char_Index guard (sub_9911A0 @ 0x009911A0)
+//
+// In stock 3.3.5a build 12340:
+// int __cdecl sub_9911A0(void* face, unsigned int charcode)
+// {
+//     if (!face) return 0;
+//     void* charmap = *(void**)(face + 0x5C);
+//     if (!charmap) return 0;
+//     void* driver = *(void**)(face + 0x60);
+//     void* clazz  = *(void**)(driver + 0x14);
+//     typedef int (__cdecl *get_char_index_fn)(void* charmap, unsigned int charcode);
+//     get_char_index_fn fn = *(get_char_index_fn*)(clazz + 0x54);
+//     return fn(charmap, charcode); // <-- Invokes fn without verifying non-null!
+// }
+//
+// Root Cause:
+// In Alterac Valley / busy combat (15v15), custom UI fonts (e.g. Sarych Cyrillic fonts,
+// combat text, or nameplate fonts) query glyph indices via sub_6C3D40 -> sub_9911A0.
+// If the font format/driver does not implement get_char_index or clazz->54h is null,
+// sub_9911A0 calls address 0x00000000, crashing immediately with 0xC0000005.
+//
+// Guard:
+// Validate face, charmap, driver, clazz, and clazz->get_char_index. If any pointer is
+// invalid or clazz->get_char_index is null/invalid code pointer, return 0 (glyph 0 =
+// undefined / missing glyph) safely without crashing.
+// ----------------------------------------------------------------------------
+
+static constexpr uintptr_t kTarget9911A0 = 0x009911A0;
+static const unsigned char kExpectedPrologue9911A0[6] = {
+    0x55, 0x8B, 0xEC, 0x8B, 0x55, 0x08
+};
+
+typedef int (__cdecl* FT_GetCharIndex_fn)(void* face, unsigned int charcode);
+static FT_GetCharIndex_fn g_orig9911A0 = nullptr;
+static volatile LONG g_nullGetCharIndexSuppressed = 0;
+static bool g_guard9911A0Active = false;
+
+__declspec(safebuffers) static int __cdecl Hooked_9911A0(void* face, unsigned int charcode) {
+    if (!face) return 0;
+    if (!IsValidReadablePointer(face, 0x64)) {
+        InterlockedIncrement(&g_nullGetCharIndexSuppressed);
+        return 0;
+    }
+
+    uintptr_t pFace = (uintptr_t)face;
+    void* charmap = *(void**)(pFace + 0x5C);
+    if (!charmap || !IsValidReadablePointer(charmap, 4)) {
+        return 0; // standard FT returns 0 if charmap is null
+    }
+
+    void* driver = *(void**)(pFace + 0x60);
+    if (!IsValidReadablePointer(driver, 0x18)) {
+        InterlockedIncrement(&g_nullGetCharIndexSuppressed);
+        return 0;
+    }
+
+    void* clazz = *(void**)((uintptr_t)driver + 0x14);
+    if (!IsValidReadablePointer(clazz, 0x58)) {
+        InterlockedIncrement(&g_nullGetCharIndexSuppressed);
+        return 0;
+    }
+
+    void* get_char_index = *(void**)((uintptr_t)clazz + 0x54);
+    if (!IsValidCodePointer(get_char_index)) {
+        InterlockedIncrement(&g_nullGetCharIndexSuppressed);
+        return 0;
+    }
+
+    return g_orig9911A0(face, charcode);
+}
+
 bool InstallRenderNullGuard()
 {
     if (!Config::g_settings.OptRenderNullGuard) {
@@ -670,7 +742,26 @@ bool InstallRenderNullGuard()
                 Log("[RenderGuard] MH_CreateHook FAILED for 0x%08X", (unsigned)kTarget992DA0);
             }
         } else {
-            Log("[RenderGuard] BAD PROLOGUE at 0x%08X", (unsigned)kTarget992DA0);
+            const unsigned char* p = (const unsigned char*)target992DA0;
+            Log("[RenderGuard] BAD PROLOGUE at 0x%08X (got %02X %02X %02X %02X %02X %02X)",
+                (unsigned)kTarget992DA0, p[0], p[1], p[2], p[3], p[4], p[5]);
+        }
+    }
+
+    void* target9911A0 = (void*)kTarget9911A0;
+    if (WowOpt_ClientPatchAllowed(target9911A0)) {
+        if (memcmp(target9911A0, kExpectedPrologue9911A0, sizeof(kExpectedPrologue9911A0)) == 0) {
+            if (MH_CreateHook(target9911A0, (void*)Hooked_9911A0, (void**)&g_orig9911A0) == MH_OK &&
+                MH_EnableHook(target9911A0) == MH_OK) {
+                g_guard9911A0Active = true;
+                Log("[RenderGuard] FT_Get_Char_Index guard ACTIVE on sub_9911A0 @ 0x%08X", (unsigned)kTarget9911A0);
+            } else {
+                Log("[RenderGuard] MH_CreateHook FAILED for 0x%08X", (unsigned)kTarget9911A0);
+            }
+        } else {
+            const unsigned char* p = (const unsigned char*)target9911A0;
+            Log("[RenderGuard] BAD PROLOGUE at 0x%08X (got %02X %02X %02X %02X %02X %02X)",
+                (unsigned)kTarget9911A0, p[0], p[1], p[2], p[3], p[4], p[5]);
         }
     }
 
@@ -730,6 +821,11 @@ void RenderNullGuard_LogStats()
     if (g_nullGlyphRasterizerSuppressed > 0) {
         Log("[RenderGuard] %ld invalid/null FreeType glyph rasterizer calls SUPPRESSED on sub_992DA0 (Error #132 prevented)",
             (long)g_nullGlyphRasterizerSuppressed);
+    }
+
+    if (g_nullGetCharIndexSuppressed > 0) {
+        Log("[RenderGuard] %ld invalid/null FreeType FT_Get_Char_Index calls SUPPRESSED on sub_9911A0 (Null function call crash prevented)",
+            (long)g_nullGetCharIndexSuppressed);
     }
 
     if (g_textureWildSanitized > 0) {
