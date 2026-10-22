@@ -250,6 +250,7 @@ static inline void CompactFast(void* thisPtr, unsigned int strataIdx) {
         }
 
         levelCount -= v7;
+        v3 = (uint32_t)(v4 + 1);
         v4 = -1;
     } while (v3 < levelCount);
 

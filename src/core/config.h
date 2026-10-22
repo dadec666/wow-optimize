@@ -716,9 +716,9 @@ namespace Config {
         bool OptSceneVisTraverse = false;
         bool OptParticlePhysics = false;
         bool OptCollisionResetVisited = true;
-        bool OptUIStrataCompact = true;
+        bool OptUIStrataCompact = false;
         bool OptDbcFastRle = false;
-        bool OptUIFrameRemove = true;
+        bool OptUIFrameRemove = false;
         bool OptM2BatchCmpTransparent = true;
         bool OptM2BatchCmpSolid = true;
         bool OptParticleQuad = false;
@@ -736,7 +736,7 @@ namespace Config {
         bool OptSStrHashFast = true;
         bool OptReverbClearFast = false;
         bool OptUILayoutRectFast = true;
-        bool OptUIStrataOverlapFast = true;
+        bool OptUIStrataOverlapFast = false;
         bool OptParticleIntegrateFast = true;
         bool OptFastSinCos = true;
         bool OptM2BatchCmpTop = true;

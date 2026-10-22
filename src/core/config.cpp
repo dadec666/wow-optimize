@@ -923,9 +923,9 @@ static const int kBoolSettingCount = (int)(sizeof(kBoolSettings) / sizeof(kBoolS
         g_settings.OptSceneVisTraverse     = GetPrivateProfileIntA("Graphics_Sound", "SceneVisTraverse", 0, iniPath.c_str()) != 0;
         g_settings.OptParticlePhysics      = GetPrivateProfileIntA("Graphics_Sound", "ParticlePhysics", 0, iniPath.c_str()) != 0;
         g_settings.OptCollisionResetVisited = GetPrivateProfileIntA("Graphics_Sound", "CollisionResetVisited", 1, iniPath.c_str()) != 0;
-        g_settings.OptUIStrataCompact      = GetPrivateProfileIntA("UI_Lua", "UIStrataCompact", 1, iniPath.c_str()) != 0;
+        g_settings.OptUIStrataCompact      = GetPrivateProfileIntA("UI_Lua", "UIStrataCompact", 0, iniPath.c_str()) != 0;
         g_settings.OptDbcFastRle           = GetPrivateProfileIntA("General", "DbcFastRle", 0, iniPath.c_str()) != 0;
-        g_settings.OptUIFrameRemove        = GetPrivateProfileIntA("UI_Lua", "UIFrameRemove", 1, iniPath.c_str()) != 0;
+        g_settings.OptUIFrameRemove        = GetPrivateProfileIntA("UI_Lua", "UIFrameRemove", 0, iniPath.c_str()) != 0;
         g_settings.OptM2BatchCmpTransparent = GetPrivateProfileIntA("Graphics_Sound", "M2BatchCmpTransparent", 1, iniPath.c_str()) != 0;
         g_settings.OptM2BatchCmpSolid       = GetPrivateProfileIntA("Graphics_Sound", "M2BatchCmpSolid", 1, iniPath.c_str()) != 0;
         g_settings.OptParticleQuad         = GetPrivateProfileIntA("Graphics_Sound", "ParticleQuad", 0, iniPath.c_str()) != 0;
@@ -943,7 +943,7 @@ static const int kBoolSettingCount = (int)(sizeof(kBoolSettings) / sizeof(kBoolS
         g_settings.OptSStrHashFast         = GetPrivateProfileIntA("General", "SStrHashFast", 1, iniPath.c_str()) != 0;
         g_settings.OptReverbClearFast      = GetPrivateProfileIntA("Graphics_Sound", "ReverbClearFast", 0, iniPath.c_str()) != 0;
         g_settings.OptUILayoutRectFast     = GetPrivateProfileIntA("UI_Lua", "UILayoutRectFast", 1, iniPath.c_str()) != 0;
-        g_settings.OptUIStrataOverlapFast  = GetPrivateProfileIntA("UI_Lua", "UIStrataOverlapFast", 1, iniPath.c_str()) != 0;
+        g_settings.OptUIStrataOverlapFast  = GetPrivateProfileIntA("UI_Lua", "UIStrataOverlapFast", 0, iniPath.c_str()) != 0;
         g_settings.OptParticleIntegrateFast = GetPrivateProfileIntA("Graphics_Sound", "ParticleIntegrateFast", 1, iniPath.c_str()) != 0;
         g_settings.OptFastSinCos            = GetPrivateProfileIntA("Graphics_Sound", "FastSinCos", 1, iniPath.c_str()) != 0;
         g_settings.OptM2BatchCmpTop         = GetPrivateProfileIntA("Graphics_Sound", "M2BatchCmpTop", 1, iniPath.c_str()) != 0;
