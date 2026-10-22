@@ -146,6 +146,7 @@
 #include "hooks_subsystems/texture_get_gxtex_fast.h"
 #include "hooks_subsystems/scene_attach_fast.h"
 #include "hooks_subsystems/ui_texture_vertex_fast.h"
+#include "hooks_subsystems/scene_query_cell_fast.h"
 #include "world_vis_traverse_sse2.h"
 #include "ui_strata_opt.h"
 #include "runtime_vm/lua_hget_dispatch.h"
@@ -6140,6 +6141,7 @@ static void DumpPeriodicStats(const char* why, bool atProcessExit) {
     STAT_TIME("TextureGetGxTexFast::LogStats", TextureGetGxTexFast::LogStats());
     STAT_TIME("SceneAttachFast::LogStats", SceneAttachFast::LogStats());
     STAT_TIME("UiTextureVertexFast::LogStats", UiTextureVertexFast::LogStats());
+    STAT_TIME("SceneQueryCellFast::LogStats", SceneQueryCellFast::LogStats());
     STAT_TIME("LuaHGetDispatch::LogStats", LuaHGetDispatch::LogStats());
     STAT_TIME("LuaPoolFast::LogStats", LuaPoolFast::LogStats());
     STAT_TIME("CombatLogFilter::LogStats", CombatLogFilter::LogStats());
@@ -8916,6 +8918,7 @@ static DWORD WINAPI MainThread(LPVOID param) {
     TextureGetGxTexFast::Init();
     SceneAttachFast::Init();
     UiTextureVertexFast::Init();
+    SceneQueryCellFast::Init();
     LuaHGetDispatch::Init();
     LuaPoolFast::Init();
     CollisionRayVerts::Init();
@@ -11963,6 +11966,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID reserved) {
             TextureGetGxTexFast::Shutdown();
             SceneAttachFast::Shutdown();
             UiTextureVertexFast::Shutdown();
+            SceneQueryCellFast::Shutdown();
             SkyTextureReuse::Shutdown();
             WorldVisTraverse::Shutdown();
             UIStrataOpt::Shutdown();

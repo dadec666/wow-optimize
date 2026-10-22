@@ -706,6 +706,8 @@ add_library(wow_optimize SHARED
     src/hooks_subsystems/scene_attach_fast.h
     src/hooks_subsystems/ui_texture_vertex_fast.cpp
     src/hooks_subsystems/ui_texture_vertex_fast.h
+    src/hooks_subsystems/scene_query_cell_fast.cpp
+    src/hooks_subsystems/scene_query_cell_fast.h
     src/simd_math/particle_physics_sse2.cpp
     src/simd_math/particle_physics_sse2.h
     src/simd_math/collision_reset_visited.cpp

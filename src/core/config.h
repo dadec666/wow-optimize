@@ -769,6 +769,7 @@ namespace Config {
         bool OptTextureGetGxTexFast = false;
         bool OptSceneAttachFast = false;
         bool OptUiTextureVertexFast = false;
+        bool OptSceneQueryCellFast = false;
     };
 
     extern Settings g_settings;
