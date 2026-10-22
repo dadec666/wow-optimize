@@ -293,9 +293,10 @@ __declspec(safebuffers) static void* __cdecl Hooked_4B6CB0(void* texture, int wa
     // the client executes:
     //     0x004B6D5E: mov eax, [esi+40h]
     //     0x004B6D61: cmp byte ptr [eax+24h], 0
-    // If m_asyncObject (+0x40) is null, it immediately crashes dereferencing [0x00000024]!
-    // If there is no loaded GxTex surface and no active async object, return nullptr safely.
-    if (*pGxTex == 0 && *pAsync == 0) {
+    // If m_atlas (+0x5C) is non-null, the texture is an atlas/sub-texture (e.g. action bar / spell icons)
+    // and the client retrieves the surface from m_atlas.
+    // Only when m_atlas, m_gxTex, AND m_asyncObject are all null does the client crash.
+    if (*pAtlas == 0 && *pGxTex == 0 && *pAsync == 0) {
         return nullptr;
     }
 
