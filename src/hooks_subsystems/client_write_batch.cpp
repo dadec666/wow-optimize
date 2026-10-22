@@ -231,18 +231,16 @@ bool TryAbsorb(void* fileObj, const void* buf, unsigned long bytes,
 
 void FlushHandle(HANDLE h, bool stopVerifying) {
     if (!g_installed || !h) return;
-    // Read before locking. This is called from the ReadFile and SetFilePointer
-    // hooks, which every part of the process goes through - one loading screen
-    // makes fifteen thousand reads - and taking a lock on each of them to
-    // discover there is nothing buffered is a cost paid by everything to serve
-    // one file. An empty buffer has nothing to lose, and a buffer that fills
-    // between this read and the lock belongs to a thread writing the same handle
-    // that this one is reading, which is the client's own race and not one this
-    // introduces.
-    if (g_len == 0) return;
+    // Lock-free check: if this handle is not the active file being batched AND
+    // nothing is currently buffered, return immediately. This keeps the fifteen
+    // thousand reads during a loading screen completely lock-free.
+    if (g_handle != h && g_len == 0) return;
+
     WinLockGuard g(g_lock);
     if (g_handle != h) return;
-    if (!FlushLocked()) g_dead = true;
+    if (g_len > 0) {
+        if (!FlushLocked()) g_dead = true;
+    }
     if (stopVerifying) g_verify = false;
 }
 
@@ -275,6 +273,13 @@ void OnClosing(HANDLE h) {
     if (!GetFileSizeEx(h, &sz)) { ++g_filesUnver; return; }
     if ((unsigned long long)sz.QuadPart == expect) {
         ++g_filesOk;
+        return;
+    }
+    // If the file on disk is larger than the bytes written in this session, the file
+    // was opened on top of existing disk data (such as SavedVariables update without truncation).
+    // This is not a loss of data.
+    if ((unsigned long long)sz.QuadPart > expect) {
+        ++g_filesUnver;
         return;
     }
     ++g_mismatch;
