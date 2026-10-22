@@ -104,6 +104,16 @@ static volatile LONG g_statMultiChild  = 0;
 static volatile LONG g_statTasksRun    = 0;
 static volatile LONG g_statFallbacks   = 0;
 
+inline void FastMatrixTranslate(float* m, const float* pos) {
+    const double p0 = (double)pos[0];
+    const double p1 = (double)pos[1];
+    const double p2 = (double)pos[2];
+
+    m[12] = (float)((double)m[12] + ((double)m[0] * p0 + ((double)m[4] * p1 + (double)m[8] * p2)));
+    m[13] = (float)((double)m[13] + ((double)m[1] * p0 + ((double)m[5] * p1 + (double)m[9] * p2)));
+    m[14] = (float)((double)m[14] + ((double)m[2] * p0 + ((double)m[6] * p1 + (double)m[10] * p2)));
+}
+
 inline void ExecuteChildTask(const ChildTask& t) {
     AnimateModel_fn fn = (AnimateModel_fn)(t.isSimple ? kAnimateSimple : kAnimateFull);
     fn(t.child, nullptr, t.matrix, t.diffuse, t.emissive, t.effectiveAlpha, t.alpha);
@@ -180,7 +190,6 @@ void __fastcall Hooked_AnimateAttachmentsMT(void* self, void* edx) {
 
     // Collect child animation tasks
     LONG taskCount = 0;
-    const MatrixTranslate_fn fnTranslate = (MatrixTranslate_fn)kMatrixTranslate;
     void* boneMatrices = *(void**)((uintptr_t)self + 0x98);
 
     for (void* child = attachList; child && taskCount < kMaxTasks; child = *(void**)((uintptr_t)child + 0x60)) {
@@ -209,7 +218,7 @@ void __fastcall Hooked_AnimateAttachmentsMT(void* self, void* edx) {
             memcpy(t.matrix, (uint8_t*)boneMatrices + (bone * 64), 64);
 
             const float* pos = (const float*)(attachment + 8);
-            fnTranslate(t.matrix, nullptr, pos);
+            FastMatrixTranslate(t.matrix, pos);
         }
 
         t.child = child;
