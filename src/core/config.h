@@ -770,6 +770,7 @@ namespace Config {
         bool OptSceneAttachFast = false;
         bool OptUiTextureVertexFast = false;
         bool OptSceneQueryCellFast = false;
+        bool OptM2BatchDedupeCmp = false;
     };
 
     extern Settings g_settings;
