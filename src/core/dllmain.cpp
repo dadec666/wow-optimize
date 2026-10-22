@@ -148,6 +148,7 @@
 #include "hooks_subsystems/ui_texture_vertex_fast.h"
 #include "hooks_subsystems/scene_query_cell_fast.h"
 #include "hooks_subsystems/m2_batch_dedupe_cmp.h"
+#include "simd_math/spline_interp_fast.h"
 #include "world_vis_traverse_sse2.h"
 #include "ui_strata_opt.h"
 #include "runtime_vm/lua_hget_dispatch.h"
@@ -6173,6 +6174,7 @@ static void DumpPeriodicStats(const char* why, bool atProcessExit) {
     STAT_TIME("UiTextureVertexFast::LogStats", UiTextureVertexFast::LogStats());
     STAT_TIME("SceneQueryCellFast::LogStats", SceneQueryCellFast::LogStats());
     STAT_TIME("M2BatchDedupeCmp::LogStats", M2BatchDedupeCmp::LogStats());
+    STAT_TIME("SplineInterpFast::LogStats", SplineInterpFast::LogStats());
     STAT_TIME("LuaHGetDispatch::LogStats", LuaHGetDispatch::LogStats());
     STAT_TIME("LuaPoolFast::LogStats", LuaPoolFast::LogStats());
     STAT_TIME("CombatLogFilter::LogStats", CombatLogFilter::LogStats());
@@ -8951,6 +8953,7 @@ static DWORD WINAPI MainThread(LPVOID param) {
     UiTextureVertexFast::Init();
     SceneQueryCellFast::Init();
     M2BatchDedupeCmp::Init();
+    SplineInterpFast::Init();
     LuaHGetDispatch::Init();
     LuaPoolFast::Init();
     CollisionRayVerts::Init();
@@ -12000,6 +12003,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID reserved) {
             UiTextureVertexFast::Shutdown();
             SceneQueryCellFast::Shutdown();
             M2BatchDedupeCmp::Shutdown();
+            SplineInterpFast::Shutdown();
             SkyTextureReuse::Shutdown();
             WorldVisTraverse::Shutdown();
             UIStrataOpt::Shutdown();
