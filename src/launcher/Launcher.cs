@@ -284,9 +284,10 @@ namespace WowOptimizeLauncher {
 
         // A measurement that slows the whole session so much that every comparison
         // made in it is made between two slow halves. Addon CPU by Sampling answers
-        // the same question without it.
+        // the same question without it. AnimTrackCensus runs only inside the animation
+        // subjects' hooks during the ON stint, penalizing the ON half in A/B tests.
         public static bool IsTooCostly(string key) {
-            return key == "AddonProfiler";
+            return key == "AddonProfiler" || key == "AnimTrackCensus";
         }
     }
 
