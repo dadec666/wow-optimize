@@ -27,8 +27,9 @@ static const int       CRT_LOCK_SPAN = 32;
 // (file system / asset / sound / network) that the main thread can stall behind.
 // Unlike the CRT table, these globals ARE the CRITICAL_SECTION objects (the
 // address is the struct), so they are tuned directly with no dereference.
+// 0x00B4A240 is stru_B4A240, the async reader file queue lock.
 static const uintptr_t ENGINE_LOCKS[] = {
-    0x00B332B0, 0x00B33718, 0x00B33930, 0x00B33C5C,
+    0x00B332B0, 0x00B33718, 0x00B33930, 0x00B33C5C, 0x00B4A240,
 };
 
 static unsigned g_retrofitted  = 0;
@@ -59,6 +60,15 @@ static bool IsTunableCS(void* p) {
 static bool TuneCS(LPCRITICAL_SECTION cs) {
     if (!IsTunableCS(cs)) return false;
     __try {
+        // On modern Windows (Windows 8/10/11), RtlEnterCriticalSection increments
+        // cs->DebugInfo->ContentionCount whenever a lock is contended. If a legacy
+        // client lock has cs->DebugInfo == NULL, ntdll dereferences (NULL + 0x14)
+        // and raises an access violation. In Windows NT, RTL_CRITICAL_SECTION_FLAG_NO_DEBUG_INFO
+        // sets DebugInfo to (PRTL_CRITICAL_SECTION_DEBUG)-1, which ntdll explicitly checks
+        // (cmp eax, -1; je skip) and cleanly bypasses. Ensure any tuned lock has non-NULL DebugInfo.
+        if (cs->DebugInfo == nullptr) {
+            cs->DebugInfo = (PRTL_CRITICAL_SECTION_DEBUG)(intptr_t)-1;
+        }
         SetCriticalSectionSpinCount(cs, SPIN_COUNT);
         return true;
     } __except (EXCEPTION_EXECUTE_HANDLER) {

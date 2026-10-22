@@ -694,9 +694,9 @@
 // keep disabled (see TEST_DISABLE_LUA_INLINE_BATCH_DANGEROUS note above).
 #define TEST_DISABLE_LUA_INLINE_BATCH  1
 
-// lua_rawgeti inline cache (8192 entries) — verified against sub_84E670 disassembly.
-// Taint propagation matches engine byte-exact; defers pseudo-indices to index2adr.
-#define TEST_DISABLE_RAWGETI_INLINE  0
+// lua_rawgeti inline cache — caused loading crash at sub_84E970 (0x0084E9DE)
+// with NULL GCObject dereference. Disabled for stability.
+#define TEST_DISABLE_RAWGETI_INLINE  1
 
 // lua_rawget inline at 0x84E600 — verified byte-exact to sub_84E600 disassembly.
 // Copies TValue from luaH_get result, taint logic matches the engine exactly.

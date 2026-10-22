@@ -233,6 +233,11 @@ namespace WowOptimizeLauncher {
             // and a field session ran it for 289007 calls. Until it is rebuilt in
             // packed double and measured against the client, no button turns it on.
             "ParticlePhysics",
+
+            // Multi-reader threads on the single asynchronous file queue. Having
+            // four reader threads concurrently pulling from one queue creates severe
+            // lock contention on the client's internal structures during loading.
+            "ExtraReaderThird", "ExtraReaderFourth",
         };
 
         // The order a tab lists them in, and what each run is called. Worst

@@ -1091,7 +1091,7 @@ extern "C" void WowOpt_NoteClientPatchRefused(void) {
 #define CRASH_TEST_DISABLE_LUA_PUSHSTRING       0   // lua_pushstring intern cache (cleared on luaC_step)
 #define CRASH_TEST_DISABLE_LUA_RAWGETI          1   // lua_rawgeti OLD pointer cache DISABLED - CONFIRMED: freezes world load when combined with other features
 #ifndef TEST_DISABLE_RAWGETI_INLINE
-#define TEST_DISABLE_RAWGETI_INLINE             0
+#define TEST_DISABLE_RAWGETI_INLINE             1
 #endif
 #ifndef TEST_DISABLE_RAWGET_INLINE
 #define TEST_DISABLE_RAWGET_INLINE              0
