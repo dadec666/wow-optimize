@@ -257,6 +257,15 @@ LONG SlotForAddress(const ModuleTable* t, uintptr_t addr) {
 // dllmain.cpp, for the same reason: a return address always has one in front of
 // it, and a stale word on the stack almost never does.
 bool CallEndsAt(uintptr_t addr) {
+    if ((addr & 0xFFFF) < 8) return false;
+    if ((addr & 0xFFF) < 7) {
+        MEMORY_BASIC_INFORMATION mbi;
+        if (!VirtualQuery((const void*)(addr - 7), &mbi, sizeof(mbi)) ||
+            mbi.State != MEM_COMMIT ||
+            (mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD))) {
+            return false;
+        }
+    }
     __try {
         const unsigned char* p = (const unsigned char*)addr;
         if (p[-5] == 0xE8) return true;

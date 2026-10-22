@@ -650,6 +650,14 @@ static bool LooksLikeReturn(uintptr_t v) {
     const bool inSelf = g_selfBase && v >= g_selfBase && v < g_selfEnd;
     if (!inWow && !inSelf) return false;
     if ((v & 0xFFFF) < 8) return false;     // an image base on the stack, not a return address
+    if ((v & 0xFFF) < 7) {
+        MEMORY_BASIC_INFORMATION mbi;
+        if (!VirtualQuery((const void*)(v - 7), &mbi, sizeof(mbi)) ||
+            mbi.State != MEM_COMMIT ||
+            (mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD))) {
+            return false;
+        }
+    }
     __try {
         const uint8_t* p = (const uint8_t*)v;
         return p[-5] == 0xE8 || p[-2] == 0xFF || p[-3] == 0xFF || p[-6] == 0xFF || p[-7] == 0xFF;

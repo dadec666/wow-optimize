@@ -398,6 +398,14 @@ static bool FreezeCallPrecedes(uintptr_t addr) {
     // at 0x003FFFFB, were caught, and showed up as a first-chance access violation in
     // two logs. No call instruction can precede the first byte of an image.
     if ((addr & 0xFFFF) < 8) return false;
+    if ((addr & 0xFFF) < 7) {
+        MEMORY_BASIC_INFORMATION mbi;
+        if (!VirtualQuery((const void*)(addr - 7), &mbi, sizeof(mbi)) ||
+            mbi.State != MEM_COMMIT ||
+            (mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD))) {
+            return false;
+        }
+    }
     __try {
         const unsigned char* p = (const unsigned char*)addr;
         if (p[-5] == 0xE8) return true;               // call rel32
