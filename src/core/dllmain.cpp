@@ -2535,6 +2535,23 @@ struct SleepTimer {
     }
 };
 
+typedef LONG (WINAPI *pfnNtDelayExecution)(BOOLEAN Alertable, PLARGE_INTEGER DelayInterval);
+static pfnNtDelayExecution g_pfnNtDelayExecution = nullptr;
+
+static void TrueSleep(DWORD ms) {
+    if (!g_pfnNtDelayExecution) {
+        HMODULE hNt = GetModuleHandleA("ntdll.dll");
+        if (hNt) g_pfnNtDelayExecution = (pfnNtDelayExecution)GetProcAddress(hNt, "NtDelayExecution");
+    }
+    if (g_pfnNtDelayExecution) {
+        LARGE_INTEGER interval;
+        interval.QuadPart = -10000LL * (LONGLONG)ms;
+        g_pfnNtDelayExecution(FALSE, &interval);
+    } else if (orig_Sleep) {
+        orig_Sleep(ms);
+    }
+}
+
 static void WINAPI hooked_Sleep(DWORD ms) {
     if (WOWOPT_FOREIGN_CALLER()) {
         // A module that is neither the client nor this DLL (the Direct3D layer, a driver, an overlay)
@@ -2568,6 +2585,18 @@ static void WINAPI hooked_Sleep(DWORD ms) {
 
         if (asker == 0x0087DF79 && FastExit::SoundStopSleep(ms)) return;
         if (asker == 0x00683742 && LoadingFrameCap::SkipSleep(ms)) return;
+
+        // When the main thread is blocked waiting for an asynchronous file read
+        // (s_waiting != 0 at 0x00B4A26C) or inside the loading screen pump sub_4BAE10
+        // (asker == 0x004BAEB6), it is waiting for texture/model I/O mid-render or
+        // mid-load, NOT at a true frame boundary. Calling foreign overlay detours
+        // (such as Byster's hook on Sleep) causes them to treat the file wait as a
+        // completed frame and inspect uninitialized unit/world structures, triggering
+        // null-pointer crashes in the overlay. Direct these internal waits to TrueSleep.
+        if (asker == 0x004BAEB6 || *(const uint32_t*)0x00B4A26C != 0) {
+            TrueSleep(ms);
+            return;
+        }
 
         if (ms == 0) {
             orig_Sleep(0);
