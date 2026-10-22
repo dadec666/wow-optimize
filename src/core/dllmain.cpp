@@ -151,6 +151,7 @@
 #include "simd_math/spline_interp_fast.h"
 #include "simd_math/plane_from_points_fast.h"
 #include "simd_math/matrix_adjugate_fast.h"
+#include "simd_math/spline_seg_length_fast.h"
 #include "world_vis_traverse_sse2.h"
 #include "ui_strata_opt.h"
 #include "runtime_vm/lua_hget_dispatch.h"
@@ -8960,6 +8961,7 @@ static DWORD WINAPI MainThread(LPVOID param) {
     SplineInterpFast::Init();
     PlaneFromPointsFast::Init();
     MatrixAdjugateFast::Init();
+    SplineSegLengthFast::Init();
     LuaHGetDispatch::Init();
     LuaPoolFast::Init();
     CollisionRayVerts::Init();

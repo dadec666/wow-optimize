@@ -983,6 +983,7 @@ static const int kBoolSettingCount = (int)(sizeof(kBoolSettings) / sizeof(kBoolS
         g_settings.OptSplineInterpFast     = GetPrivateProfileIntA("Graphics_Sound", "SplineInterpFast", 0, iniPath.c_str()) != 0;
         g_settings.OptPlaneFromPointsFast  = GetPrivateProfileIntA("Graphics_Sound", "PlaneFromPointsFast", 0, iniPath.c_str()) != 0;
         g_settings.OptMatrixAdjugateFast   = GetPrivateProfileIntA("Graphics_Sound", "MatrixAdjugateFast", 0, iniPath.c_str()) != 0;
+        g_settings.OptSplineSegLengthFast  = GetPrivateProfileIntA("Graphics_Sound", "SplineSegLengthFast", 0, iniPath.c_str()) != 0;
     }
 }
 

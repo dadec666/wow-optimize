@@ -836,6 +836,8 @@ add_library(wow_optimize SHARED
     src/simd_math/collision_segment_bsp_sse2.h
     src/simd_math/collision_segment_leaf_sse2.cpp
     src/simd_math/collision_segment_leaf_sse2.h
+    src/simd_math/spline_seg_length_fast.cpp
+    src/simd_math/spline_seg_length_fast.h
 )
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/core/server_sync_compat.cpp")
@@ -1015,3 +1017,4 @@ target_compile_definitions(wow_loader PRIVATE
     WIN32_LEAN_AND_MEAN
     _CRT_SECURE_NO_WARNINGS
 )
+
