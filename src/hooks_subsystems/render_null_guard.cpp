@@ -451,20 +451,69 @@ static GlyphRasterize_fn g_orig992DA0 = nullptr;
 static volatile LONG g_nullGlyphRasterizerSuppressed = 0;
 static bool g_guard992DA0Active = false;
 
+static inline bool IsValidCodePointer(const void* ptr) {
+    if (!ptr) return false;
+    uintptr_t fnAddr = (uintptr_t)ptr;
+    if (fnAddr < 0x10000 || fnAddr >= 0xFFFE0000) return false;
+
+    // Fast path: wow.exe code section (.text) is always committed executable code:
+    if (fnAddr >= 0x00401000 && fnAddr < 0x009DF000) {
+        return true;
+    }
+
+    // Slow path for external / JIT / DLL code: must be committed with EXECUTE rights:
+    MEMORY_BASIC_INFORMATION mbi = {};
+    if (!VirtualQuery(ptr, &mbi, sizeof(mbi))) {
+        return false;
+    }
+    if (mbi.State != MEM_COMMIT) {
+        return false;
+    }
+    const DWORD kExecFlags = PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY;
+    return (mbi.Protect & kExecFlags) != 0;
+}
+
+static inline bool IsValidReadablePointer(const void* ptr, size_t size) {
+    if (!ptr) return false;
+    uintptr_t addr = (uintptr_t)ptr;
+    if (addr < 0x10000 || addr >= 0xFFFE0000) return false;
+    if (addr + size < addr || addr + size >= 0xFFFE0000) return false;
+
+    // Fast path: wow.exe static data / bss
+    if (addr >= 0x00401000 && (addr + size) <= 0x00E00000) {
+        return true;
+    }
+
+    MEMORY_BASIC_INFORMATION mbi = {};
+    if (!VirtualQuery(ptr, &mbi, sizeof(mbi))) {
+        return false;
+    }
+    if (mbi.State != MEM_COMMIT) {
+        return false;
+    }
+    if (mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD)) {
+        return false;
+    }
+    if ((uintptr_t)mbi.BaseAddress + mbi.RegionSize < addr + size) {
+        return false;
+    }
+    return true;
+}
+
 __declspec(safebuffers) static int __cdecl Hooked_992DA0(int a1, unsigned int a2, unsigned int a3) {
-    if (!a1 || (uintptr_t)a1 < 0x10000 || (uintptr_t)a1 >= 0xFFFE0000) {
+    if (!IsValidReadablePointer((const void*)a1, 0x64)) {
         return 35;
     }
 
     uintptr_t sizeObj = *(uintptr_t*)(a1 + 0x58);
     uintptr_t slotObj = *(uintptr_t*)(a1 + 0x54);
-    if (!sizeObj || sizeObj < 0x10000 || sizeObj >= 0xFFFE0000 ||
-        !slotObj || slotObj < 0x10000 || slotObj >= 0xFFFE0000) {
+    if (!IsValidReadablePointer((const void*)sizeObj, 16) ||
+        !IsValidReadablePointer((const void*)slotObj, 16)) {
         return 35;
     }
 
     uintptr_t driver = *(uintptr_t*)(a1 + 0x60);
-    if (driver < 0x10000 || driver >= 0xFFFE0000) {
+    if (!IsValidReadablePointer((const void*)driver, 0x18)) {
         InterlockedIncrement(&g_nullGlyphRasterizerSuppressed);
         return 35;
     }
@@ -472,31 +521,31 @@ __declspec(safebuffers) static int __cdecl Hooked_992DA0(int a1, unsigned int a2
     // Determine whether Path A (outline renderer) or Path B (raster_render) is selected
     bool pathA = false;
     uintptr_t pClazz = *(uintptr_t*)(driver + 4);
-    if (pClazz >= 0x10000 && pClazz < 0xFFFE0000) {
+    if (IsValidReadablePointer((const void*)pClazz, 0x60)) {
         uintptr_t v8 = *(uintptr_t*)(pClazz + 0x5C);
         if (v8 != 0 && (a3 & 3) == 0) {
             uintptr_t pV7_0 = *(uintptr_t*)driver;
-            if (pV7_0 >= 0x10000 && pV7_0 < 0xFFFE0000) {
+            if (IsValidReadablePointer((const void*)pV7_0, 4)) {
                 uintptr_t v9 = *(uintptr_t*)pV7_0;
                 if ((v9 & 0x100) != 0 && (v9 & 0x200) == 0 &&
                     (((v9 & 0x400) == 0) || ((a3 & 0x20) != 0))) {
                     pathA = true;
-                    if (v8 < 0x10000 || v8 >= 0xFFFE0000) {
+                    if (!IsValidReadablePointer((const void*)v8, 4)) {
                         InterlockedIncrement(&g_nullGlyphRasterizerSuppressed);
                         return 35;
                     }
                     uintptr_t altEcX = *(uintptr_t*)v8;
-                    if (altEcX < 0x10000 || altEcX >= 0xFFFE0000) {
+                    if (!IsValidReadablePointer((const void*)altEcX, 0x18)) {
                         InterlockedIncrement(&g_nullGlyphRasterizerSuppressed);
                         return 35;
                     }
                     uintptr_t altTable = *(uintptr_t*)(altEcX + 0x14);
-                    if (altTable < 0x10000 || altTable >= 0xFFFE0000) {
+                    if (!IsValidReadablePointer((const void*)altTable, 8)) {
                         InterlockedIncrement(&g_nullGlyphRasterizerSuppressed);
                         return 35;
                     }
                     void* altRenderFn = *(void**)(altTable + 4);
-                    if (!altRenderFn || (uintptr_t)altRenderFn < 0x10000 || (uintptr_t)altRenderFn >= 0xFFFE0000) {
+                    if (!IsValidCodePointer(altRenderFn)) {
                         InterlockedIncrement(&g_nullGlyphRasterizerSuppressed);
                         return 35;
                     }
@@ -507,12 +556,12 @@ __declspec(safebuffers) static int __cdecl Hooked_992DA0(int a1, unsigned int a2
 
     if (!pathA) {
         uintptr_t rTable = *(uintptr_t*)(driver + 0x14);
-        if (rTable < 0x10000 || rTable >= 0xFFFE0000) {
+        if (!IsValidReadablePointer((const void*)rTable, 0x54)) {
             InterlockedIncrement(&g_nullGlyphRasterizerSuppressed);
             return 35;
         }
         void* renderFn = *(void**)(rTable + 0x50);
-        if (!renderFn || (uintptr_t)renderFn < 0x10000 || (uintptr_t)renderFn >= 0xFFFE0000) {
+        if (!IsValidCodePointer(renderFn)) {
             InterlockedIncrement(&g_nullGlyphRasterizerSuppressed);
             return 35;
         }
@@ -679,7 +728,7 @@ void RenderNullGuard_LogStats()
     }
 
     if (g_nullGlyphRasterizerSuppressed > 0) {
-        Log("[RenderGuard] %ld null FreeType glyph rasterizer calls SUPPRESSED on sub_992DA0 (Error #132 EIP=0 prevented)",
+        Log("[RenderGuard] %ld invalid/null FreeType glyph rasterizer calls SUPPRESSED on sub_992DA0 (Error #132 prevented)",
             (long)g_nullGlyphRasterizerSuppressed);
     }
 
