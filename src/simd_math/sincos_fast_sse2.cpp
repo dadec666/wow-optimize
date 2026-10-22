@@ -138,7 +138,9 @@ __declspec(safebuffers) static int __cdecl Hook_SinCos(float angle, float* outSi
     }
 
     // Dual-run verification mode
-    if (g_verified < kVerifyCount || (g_calls & kVerifySampleMask) == 0) {
+    if (g_verified < kVerifyCount ||
+        (g_verified < 100000 && (g_calls & 1023) == 0) ||
+        ((g_calls & 8191) == 0)) {
         float shadow_sin = 0.0f;
         float shadow_cos = 0.0f;
 

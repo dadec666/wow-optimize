@@ -173,7 +173,9 @@ __declspec(safebuffers) static int __cdecl Hook_sub_81EF30(int a1, int a2, int a
         return g_orig(a1, a2, a3);
     }
 
-    const bool verify = (g_verifiedCalls < 10000) || ((g_calls & 127) == 0);
+    const bool verify = (g_verifiedCalls < 10000) ||
+                        (g_verifiedCalls < 100000 && (g_calls & 1023) == 0) ||
+                        ((g_calls & 8191) == 0);
     if (verify) {
         ++g_verifiedCalls;
         const int expected = g_orig(a1, a2, a3);

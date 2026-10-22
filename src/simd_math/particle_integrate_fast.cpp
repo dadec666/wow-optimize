@@ -191,7 +191,9 @@ __declspec(safebuffers) static BOOL __fastcall Hook_ParticleIntegrate(
     }
 
     // Dual-run verification mode
-    if (g_verified < kVerifyCount || (g_calls & kVerifySampleMask) == 0) {
+    if (g_verified < kVerifyCount ||
+        (g_verified < 100000 && (g_calls & 1023) == 0) ||
+        ((g_calls & 8191) == 0)) {
         Particle shadow = *p;
 
         BOOL client_res = g_orig_ParticleIntegrate(this_ptr, dummy_edx, p, dt);

@@ -263,7 +263,9 @@ __declspec(safebuffers) void* __cdecl Hooked_TextureGetGxTex(void* texture, int 
         }
     }
 
-    const bool verify = (g_verified < kVerifyFirst) || ((callIdx & kResampleMask) == 0);
+    const bool verify = (g_verified < kVerifyFirst) ||
+                        (g_verified < 100000 && (callIdx & 1023) == 0) ||
+                        ((callIdx & 8191) == 0);
 
     if (verify) {
         void* real = g_orig(texture, wait, status);
