@@ -712,6 +712,8 @@ add_library(wow_optimize SHARED
     src/hooks_subsystems/m2_batch_dedupe_cmp.h
     src/simd_math/spline_interp_fast.cpp
     src/simd_math/spline_interp_fast.h
+    src/simd_math/plane_from_points_fast.cpp
+    src/simd_math/plane_from_points_fast.h
     src/simd_math/particle_physics_sse2.cpp
     src/simd_math/particle_physics_sse2.h
     src/simd_math/collision_reset_visited.cpp

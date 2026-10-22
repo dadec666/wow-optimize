@@ -772,6 +772,7 @@ namespace Config {
         bool OptSceneQueryCellFast = false;
         bool OptM2BatchDedupeCmp = false;
         bool OptSplineInterpFast = false;
+        bool OptPlaneFromPointsFast = false;
     };
 
     extern Settings g_settings;

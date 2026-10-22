@@ -292,6 +292,7 @@ static const BoolSetting kBoolSettings[] = {
     { "Graphics_Sound", "SceneQueryCellFast", &Settings::OptSceneQueryCellFast },
     { "Graphics_Sound", "M2BatchDedupeCmp", &Settings::OptM2BatchDedupeCmp },
     { "Graphics_Sound", "SplineInterpFast", &Settings::OptSplineInterpFast },
+    { "Graphics_Sound", "PlaneFromPointsFast", &Settings::OptPlaneFromPointsFast },
 };
 
 static const int kBoolSettingCount = (int)(sizeof(kBoolSettings) / sizeof(kBoolSettings[0]));
@@ -979,6 +980,7 @@ static const int kBoolSettingCount = (int)(sizeof(kBoolSettings) / sizeof(kBoolS
         g_settings.OptSceneQueryCellFast   = GetPrivateProfileIntA("Graphics_Sound", "SceneQueryCellFast", 0, iniPath.c_str()) != 0;
         g_settings.OptM2BatchDedupeCmp     = GetPrivateProfileIntA("Graphics_Sound", "M2BatchDedupeCmp", 0, iniPath.c_str()) != 0;
         g_settings.OptSplineInterpFast     = GetPrivateProfileIntA("Graphics_Sound", "SplineInterpFast", 0, iniPath.c_str()) != 0;
+        g_settings.OptPlaneFromPointsFast  = GetPrivateProfileIntA("Graphics_Sound", "PlaneFromPointsFast", 0, iniPath.c_str()) != 0;
     }
 }
 
