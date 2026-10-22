@@ -773,6 +773,7 @@ namespace Config {
         bool OptM2BatchDedupeCmp = false;
         bool OptSplineInterpFast = false;
         bool OptPlaneFromPointsFast = false;
+        bool OptMatrixAdjugateFast = false;
     };
 
     extern Settings g_settings;

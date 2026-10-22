@@ -150,6 +150,7 @@
 #include "hooks_subsystems/m2_batch_dedupe_cmp.h"
 #include "simd_math/spline_interp_fast.h"
 #include "simd_math/plane_from_points_fast.h"
+#include "simd_math/matrix_adjugate_fast.h"
 #include "world_vis_traverse_sse2.h"
 #include "ui_strata_opt.h"
 #include "runtime_vm/lua_hget_dispatch.h"
@@ -6177,6 +6178,7 @@ static void DumpPeriodicStats(const char* why, bool atProcessExit) {
     STAT_TIME("M2BatchDedupeCmp::LogStats", M2BatchDedupeCmp::LogStats());
     STAT_TIME("SplineInterpFast::LogStats", SplineInterpFast::LogStats());
     STAT_TIME("PlaneFromPointsFast::LogStats", PlaneFromPointsFast::LogStats());
+    STAT_TIME("MatrixAdjugateFast::LogStats", MatrixAdjugateFast::LogStats());
     STAT_TIME("LuaHGetDispatch::LogStats", LuaHGetDispatch::LogStats());
     STAT_TIME("LuaPoolFast::LogStats", LuaPoolFast::LogStats());
     STAT_TIME("CombatLogFilter::LogStats", CombatLogFilter::LogStats());
@@ -8957,6 +8959,7 @@ static DWORD WINAPI MainThread(LPVOID param) {
     M2BatchDedupeCmp::Init();
     SplineInterpFast::Init();
     PlaneFromPointsFast::Init();
+    MatrixAdjugateFast::Init();
     LuaHGetDispatch::Init();
     LuaPoolFast::Init();
     CollisionRayVerts::Init();
@@ -12008,6 +12011,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID reserved) {
             M2BatchDedupeCmp::Shutdown();
             SplineInterpFast::Shutdown();
             PlaneFromPointsFast::Shutdown();
+            MatrixAdjugateFast::Shutdown();
             SkyTextureReuse::Shutdown();
             WorldVisTraverse::Shutdown();
             UIStrataOpt::Shutdown();
