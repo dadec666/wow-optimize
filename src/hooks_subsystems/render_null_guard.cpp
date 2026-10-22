@@ -187,6 +187,17 @@ __declspec(naked) static void Hooked_4B6550() {
         cmp eax, 0xFFFE0000
         jae sanitize_and_skip
 
+        // Verify async object has a valid device pointer at [eax + 0x18]!
+        // In sub_4BA060, the client executes: mov ecx, [esi+18h]; add ecx, 8; call sub_7B5020.
+        // If [eax+0x18] is not a valid device pointer (< 0x10000 or >= 0xFFFE0000),
+        // sub_7B5020 will dereference an invalid address (e.g. 0x49 + 8 = 0x51)
+        // and crash at 0x007B502D.
+        mov ecx, [eax + 0x18]
+        cmp ecx, 0x10000
+        jb sanitize_and_skip
+        cmp ecx, 0xFFFE0000
+        jae sanitize_and_skip
+
         // If s_waiting != 0 (at 0x00B4A26C), AsyncFileReadWait is already active!
         // Calling sub_4BA060 will trigger the fatal assertion "AsyncFileReadWait(): s_waiting != FALSE".
         // Skip the blocking wait and return safely.
@@ -320,6 +331,7 @@ static const unsigned char kExpectedPrologue4BA060[9] = {
 typedef int (__cdecl* AsyncFileReadWait_fn)(void* req);
 static AsyncFileReadWait_fn g_orig4BA060 = nullptr;
 static volatile LONG g_fileWaitReentrantSuppressed = 0;
+static volatile LONG g_fileWaitCorruptedSuppressed = 0;
 static bool g_guard4BA060Active = false;
 
 __declspec(safebuffers) static int __cdecl Hooked_4BA060(void* req) {
@@ -337,7 +349,58 @@ __declspec(safebuffers) static int __cdecl Hooked_4BA060(void* req) {
         return *((const uint8_t*)req + 0x21) != 0 ? 1 : 0;
     }
 
+    // Offset +0x18 is AsyncDevice* in the AsyncObject.
+    // In sub_4BA060, the client executes:
+    //   mov ecx, [esi+18h]
+    //   add ecx, 8
+    //   call sub_7B5020  (which dereferences [ecx])
+    // If [req+0x18] is not a valid device pointer (< 0x10000 or >= 0xFFFE0000),
+    // sub_7B5020 will dereference an invalid address (e.g. 0x49 + 8 = 0x51)
+    // and crash with ACCESS_VIOLATION reading from 0x00000051.
+    uintptr_t dev = *(const uintptr_t*)((const char*)req + 0x18);
+    if (dev < 0x10000 || dev >= 0xFFFE0000) {
+        InterlockedIncrement(&g_fileWaitCorruptedSuppressed);
+        return *((const uint8_t*)req + 0x21) != 0 ? 1 : 0;
+    }
+
     return g_orig4BA060(req);
+}
+
+// ----------------------------------------------------------------------------
+// TSList::PushFront / Link guard (sub_7B5020 @ 0x007B5020)
+//
+// In stock 3.3.5a build 12340, sub_7B5020 links a node into a circular intrusive
+// doubly-linked list (TSList / TSLink). ECX contains 'this' (the list head).
+// At 0x007B502D, it executes:
+//     mov eax, [ecx]
+// If ECX is wild (< 0x10000 or >= 0xFFFE0000, such as 0x51 when a corrupted or
+// recycled object's [obj+0x18] (0x49) + 8 is passed), it immediately crashes with
+// ACCESS_VIOLATION reading from 0x00000051.
+// ----------------------------------------------------------------------------
+
+static constexpr uintptr_t kTarget7B5020 = 0x007B5020;
+static const unsigned char kExpectedPrologue7B5020[8] = {
+    0x55, 0x8B, 0xEC, 0x53, 0x8B, 0x5D, 0x08, 0x85
+};
+
+static void* g_orig7B5020 = nullptr;
+static volatile LONG g_listLinkNullSuppressed = 0;
+static bool g_guard7B5020Active = false;
+
+__declspec(naked) static void Hooked_7B5020() {
+    __asm {
+        cmp ecx, 0x10000
+        jb invalid_list
+        cmp ecx, 0xFFFE0000
+        jae invalid_list
+
+        jmp dword ptr [g_orig7B5020]
+
+    invalid_list:
+        inc dword ptr [g_listLinkNullSuppressed]
+        xor eax, eax
+        ret 4
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -765,6 +828,21 @@ bool InstallRenderNullGuard()
         }
     }
 
+    void* target7B5020 = (void*)kTarget7B5020;
+    if (WowOpt_ClientPatchAllowed(target7B5020)) {
+        if (memcmp(target7B5020, kExpectedPrologue7B5020, sizeof(kExpectedPrologue7B5020)) == 0) {
+            if (MH_CreateHook(target7B5020, (void*)Hooked_7B5020, (void**)&g_orig7B5020) == MH_OK &&
+                MH_EnableHook(target7B5020) == MH_OK) {
+                g_guard7B5020Active = true;
+                Log("[RenderGuard] TSList link guard ACTIVE on sub_7B5020 @ 0x%08X", (unsigned)kTarget7B5020);
+            } else {
+                Log("[RenderGuard] MH_CreateHook FAILED for 0x%08X", (unsigned)kTarget7B5020);
+            }
+        } else {
+            Log("[RenderGuard] BAD PROLOGUE at 0x%08X", (unsigned)kTarget7B5020);
+        }
+    }
+
     return true;
 }
 
@@ -826,6 +904,16 @@ void RenderNullGuard_LogStats()
     if (g_nullGetCharIndexSuppressed > 0) {
         Log("[RenderGuard] %ld invalid/null FreeType FT_Get_Char_Index calls SUPPRESSED on sub_9911A0 (Null function call crash prevented)",
             (long)g_nullGetCharIndexSuppressed);
+    }
+
+    if (g_fileWaitCorruptedSuppressed > 0) {
+        Log("[RenderGuard] %ld corrupted AsyncFileReadWait calls avoided (wild AsyncDevice pointer sanitized)",
+            (long)g_fileWaitCorruptedSuppressed);
+    }
+
+    if (g_listLinkNullSuppressed > 0) {
+        Log("[RenderGuard] %ld invalid TSList link calls SUPPRESSED on sub_7B5020 (Crash at 0x007B502D prevented)",
+            (long)g_listLinkNullSuppressed);
     }
 
     if (g_textureWildSanitized > 0) {
