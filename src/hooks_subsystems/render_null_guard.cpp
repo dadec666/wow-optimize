@@ -187,17 +187,6 @@ __declspec(naked) static void Hooked_4B6550() {
         cmp eax, 0xFFFE0000
         jae sanitize_and_skip
 
-        // Verify async object has a valid device pointer at [eax + 0x18]!
-        // In sub_4BA060, the client executes: mov ecx, [esi+18h]; add ecx, 8; call sub_7B5020.
-        // If [eax+0x18] is not a valid device pointer (< 0x10000 or >= 0xFFFE0000),
-        // sub_7B5020 will dereference an invalid address (e.g. 0x49 + 8 = 0x51)
-        // and crash at 0x007B502D.
-        mov ecx, [eax + 0x18]
-        cmp ecx, 0x10000
-        jb sanitize_and_skip
-        cmp ecx, 0xFFFE0000
-        jae sanitize_and_skip
-
         // If s_waiting != 0 (at 0x00B4A26C), AsyncFileReadWait is already active!
         // Calling sub_4BA060 will trigger the fatal assertion "AsyncFileReadWait(): s_waiting != FALSE".
         // Skip the blocking wait and return safely.
@@ -300,7 +289,58 @@ __declspec(safebuffers) static void* __cdecl Hooked_4B6CB0(void* texture, int wa
         InterlockedIncrement(&g_textureWildSanitized);
     }
 
+    // In stock sub_4B6CB0 (TextureGetGxTex), when wait == 2 and m_gxTex (+0x44) is 0:
+    // the client executes:
+    //     0x004B6D5E: mov eax, [esi+40h]
+    //     0x004B6D61: cmp byte ptr [eax+24h], 0
+    // If m_asyncObject (+0x40) is null, it immediately crashes dereferencing [0x00000024]!
+    // If there is no loaded GxTex surface and no active async object, return nullptr safely.
+    if (*pGxTex == 0 && *pAsync == 0) {
+        return nullptr;
+    }
+
     return g_orig4B6CB0(texture, wait, status);
+}
+
+// ----------------------------------------------------------------------------
+// TextureAsyncCallback guard (sub_4B7E80 @ 0x004B7E80)
+//
+// In stock 3.3.5a build 12340, sub_4B7E80 is invoked by AsyncFileReadThread
+// (sub_4B9B20) upon async texture file decompression. It loads:
+//     0x004B7E87: mov eax, [esi+40h]   ; m_asyncObject
+//     0x004B7E8A: mov ecx, [eax+4]     ; buffer pointer
+// If m_asyncObject is null or wild, reading [eax+4] crashes with ACCESS_VIOLATION
+// at 0x004B7E8A reading from 0x00000004.
+// ----------------------------------------------------------------------------
+
+static constexpr uintptr_t kTarget4B7E80 = 0x004B7E80;
+static const unsigned char kExpectedPrologue4B7E80[8] = {
+    0x55, 0x8B, 0xEC, 0x56, 0x8B, 0x75, 0x08, 0x8B
+};
+
+typedef int (__cdecl* TextureAsyncCallback_fn)(void* texture);
+static TextureAsyncCallback_fn g_orig4B7E80 = nullptr;
+static volatile LONG g_textureAsyncNullSuppressed = 0;
+static bool g_guard4B7E80Active = false;
+
+__declspec(safebuffers) static int __cdecl Hooked_4B7E80(void* texture) {
+    if (!texture || (uintptr_t)texture < 0x10000 || (uintptr_t)texture >= 0xFFFE0000) {
+        return 0;
+    }
+
+    void* asyncObj = *(void**)((char*)texture + 0x40);
+    if (!asyncObj || (uintptr_t)asyncObj < 0x10000 || (uintptr_t)asyncObj >= 0xFFFE0000) {
+        InterlockedIncrement(&g_textureAsyncNullSuppressed);
+        return 0;
+    }
+
+    void* buffer = *(void**)((char*)asyncObj + 0x04);
+    if (!buffer || (uintptr_t)buffer < 0x10000 || (uintptr_t)buffer >= 0xFFFE0000) {
+        InterlockedIncrement(&g_textureAsyncNullSuppressed);
+        return 0;
+    }
+
+    return g_orig4B7E80(texture);
 }
 
 // ----------------------------------------------------------------------------
@@ -346,20 +386,6 @@ __declspec(safebuffers) static int __cdecl Hooked_4BA060(void* req) {
 
     if (*(const uint32_t*)0x00B4A26C != 0) {
         InterlockedIncrement(&g_fileWaitReentrantSuppressed);
-        return *((const uint8_t*)req + 0x21) != 0 ? 1 : 0;
-    }
-
-    // Offset +0x18 is AsyncDevice* in the AsyncObject.
-    // In sub_4BA060, the client executes:
-    //   mov ecx, [esi+18h]
-    //   add ecx, 8
-    //   call sub_7B5020  (which dereferences [ecx])
-    // If [req+0x18] is not a valid device pointer (< 0x10000 or >= 0xFFFE0000),
-    // sub_7B5020 will dereference an invalid address (e.g. 0x49 + 8 = 0x51)
-    // and crash with ACCESS_VIOLATION reading from 0x00000051.
-    uintptr_t dev = *(const uintptr_t*)((const char*)req + 0x18);
-    if (dev < 0x10000 || dev >= 0xFFFE0000) {
-        InterlockedIncrement(&g_fileWaitCorruptedSuppressed);
         return *((const uint8_t*)req + 0x21) != 0 ? 1 : 0;
     }
 
@@ -843,6 +869,21 @@ bool InstallRenderNullGuard()
         }
     }
 
+    void* target4B7E80 = (void*)kTarget4B7E80;
+    if (WowOpt_ClientPatchAllowed(target4B7E80)) {
+        if (memcmp(target4B7E80, kExpectedPrologue4B7E80, sizeof(kExpectedPrologue4B7E80)) == 0) {
+            if (MH_CreateHook(target4B7E80, (void*)Hooked_4B7E80, (void**)&g_orig4B7E80) == MH_OK &&
+                MH_EnableHook(target4B7E80) == MH_OK) {
+                g_guard4B7E80Active = true;
+                Log("[RenderGuard] TextureAsyncCallback guard ACTIVE on sub_4B7E80 @ 0x%08X", (unsigned)kTarget4B7E80);
+            } else {
+                Log("[RenderGuard] MH_CreateHook FAILED for 0x%08X", (unsigned)kTarget4B7E80);
+            }
+        } else {
+            Log("[RenderGuard] BAD PROLOGUE at 0x%08X", (unsigned)kTarget4B7E80);
+        }
+    }
+
     return true;
 }
 
@@ -906,14 +947,14 @@ void RenderNullGuard_LogStats()
             (long)g_nullGetCharIndexSuppressed);
     }
 
-    if (g_fileWaitCorruptedSuppressed > 0) {
-        Log("[RenderGuard] %ld corrupted AsyncFileReadWait calls avoided (wild AsyncDevice pointer sanitized)",
-            (long)g_fileWaitCorruptedSuppressed);
-    }
-
     if (g_listLinkNullSuppressed > 0) {
         Log("[RenderGuard] %ld invalid TSList link calls SUPPRESSED on sub_7B5020 (Crash at 0x007B502D prevented)",
             (long)g_listLinkNullSuppressed);
+    }
+
+    if (g_textureAsyncNullSuppressed > 0) {
+        Log("[RenderGuard] %ld invalid TextureAsyncCallback calls SUPPRESSED on sub_4B7E80 (Null m_asyncObject crash prevented)",
+            (long)g_textureAsyncNullSuppressed);
     }
 
     if (g_textureWildSanitized > 0) {
