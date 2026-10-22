@@ -743,7 +743,7 @@
 // Fast UIFrame accessor hooks (IsShown at 0x48C610, IsVisible at 0x48C5B0, GetAlpha at 0x48C4C0, GetScale at 0x49F7D0).
 // Direct access to C++ object fields from Lua table index 0 with type-checking validation.
 // Reduces FrameScript_GetObject overhead on UI updates. Set to 1 to disable.
-#define TEST_DISABLE_UI_ACCESSOR_FAST         0  // enabled: UIFrame accessor hooks
+#define TEST_DISABLE_UI_ACCESSOR_FAST         1  // disabled: UIFrame accessor hooks
 
 // Fast FontString metrics hooks (GetStringWidth at 0x0048DE90, GetStringHeight at 0x0048DF00).
 // Directly queries internal C++ metrics structures bypassing full stack setup and type checking.
@@ -771,18 +771,12 @@
 //
 // UI Frame XML accessor hooks (ui_accessor_fast.cpp):
 //  Frame_IsShown 0x49FE90, Frame_IsVisible 0x49FE30, Frame_GetAlpha 0x49F980,
-//  Frame_GetFrameLevel 0x49E980. Disassembly-verified __cdecl(L) with correct field offsets.
-//  Default ENABLED.
-#define TEST_DISABLE_FRAME_ACCESSOR_FAST         0  // disabled: Frame XML accessor hooks
+//  Frame_GetFrameLevel 0x49E980. Disabled: causes missing arena frames and UI discrepancies.
+#define TEST_DISABLE_FRAME_ACCESSOR_FAST         1  // disabled: Frame XML accessor hooks
 //
 // UI Layout accessors (ui_accessor_fast.cpp):
-//  GetWidth 0x49D3B0, GetHeight 0x49D550.
-//  Disassembly decompile marked these __usercall, but full disassembly review shows
-//  standard __cdecl prologue (push ebp; mov ebp, esp) with one stack parameter
-//  (L = Lua state). The decompiler defaulted to __usercall because it saw callee-saved
-//  register use (ebx/esi/edi), not because of a non-standard convention.
-//  MinHook is safe. Default ENABLED.
-#define TEST_DISABLE_LAYOUT_ACCESSOR_FAST         0  // disabled: layout accessor hooks
+//  GetWidth 0x49D3B0, GetHeight 0x49D550. Disabled: corrupts layout calculations.
+#define TEST_DISABLE_LAYOUT_ACCESSOR_FAST         1  // disabled: layout accessor hooks
 
 
 // ================================================================

@@ -795,7 +795,7 @@ namespace WowOptimizeLauncher {
                 { "Object Visibility Lookup Cache", new SettingItem("General", "ObjVisCache", false, null, "Compiled out of this build. The switch is read and nothing is installed.", true) },
 
                 // UI & Lua
-                { "Fast UI Frame Accessors", new SettingItem("UI_Lua", "UIFrameAccessorFast", false, null, "Bypasses standard Lua stack queries to retrieve UI frame parameters (IsShown, GetAlpha) instantly.") },
+                { "Fast UI Frame Accessors", new SettingItem("UI_Lua", "UIFrameAccessorFast", false, null, "Bypasses standard Lua stack queries to retrieve UI frame parameters (IsShown, GetAlpha) instantly.", true) },
                 { "Fast FontString Metrics & Glyph Cache", new SettingItem("UI_Lua", "FontMetricsFast", false, null, "Caches text measurements for one frame and the results of the glyph loader. In field sessions the measurement cache answered none of the calls it saw, and the glyph cache does not install on a client whose own extension already patches the glyph loader. No gain has been measured.") },
                 { "FrameScript FNV-1a Dispatcher", new SettingItem("UI_Lua", "FrameScriptDispatch", false, null, "Uses an O(1) hash map lookup for script handlers instead of linear string matching.") },
                 { "Lua Number Conversion Fast Path", new SettingItem("UI_Lua", "LuaNumConvFast", false, null, "Inlines common Lua stack value queries (tonumber, gettop, settop) to bypass stack checking overhead.") },

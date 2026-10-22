@@ -371,12 +371,11 @@ bool NoDependantCanMatch(uint32_t head, uint32_t self, DepScan* out) {
     out->entries    = n;
     out->qualifying = q;
     out->linked     = linked;
-    out->only       = (q == 1) ? first : 0;
-    // Two ways to be sure the scan finds nothing: no dependant qualifies, or
-    // none of the ones that qualify is in the list the scan walks. The second
-    // is worth its extra read - a field session deferred 38703 calls on a
-    // non-empty index and the client found nothing in 7860 of them.
-    return n > 0 && linked == 0;
+    // Only safe when no examined dependant actually qualifies (anchors to self).
+    // If q > 0 (dependants DO anchor to self), even if linked == 0 at this exact instant,
+    // those dependants are about to be linked, and bypassing the client's topological
+    // insertion breaks layout ordering for dynamic frames (e.g. ArenaEnemyFrames, Gladius).
+    return n > 0 && q == 0;
 }
 
 // The not-found tail of sub_489710, transcribed from 0x004897CE to 0x0048983D.

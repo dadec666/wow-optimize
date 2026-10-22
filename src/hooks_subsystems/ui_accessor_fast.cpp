@@ -247,13 +247,11 @@ static int __cdecl c_hook_GetWidth(uintptr_t L) {
                                 double w = getWidthFn(layoutFrame);
                                 if (w != 0.0) {
                                     typedef double (*sub_47BFE0_t)();
-                                    typedef double (*sub_47C050_t)(float);
                                     double scale = ((sub_47BFE0_t)0x0047BFE0)();
                                     double v7 = scale * 1024.0 * w;
-                                    double final_w = ((sub_47C050_t)0x0047C050)((float)v7);
 
                                     typedef int (__cdecl* lua_pushnumber_t)(uintptr_t, double);
-                                    ((lua_pushnumber_t)0x0084E2A0)(L, final_w);
+                                    ((lua_pushnumber_t)0x0084E2A0)(L, v7);
                                     return 1;
                                 }
                             }
@@ -321,13 +319,11 @@ static int __cdecl c_hook_GetHeight(uintptr_t L) {
                                 double h = getHeightFn(layoutFrame);
                                 if (h != 0.0) {
                                     typedef double (*sub_47BFE0_t)();
-                                    typedef double (*sub_47C050_t)(float);
                                     double scale = ((sub_47BFE0_t)0x0047BFE0)();
                                     double v7 = scale * 1024.0 * h;
-                                    double final_h = ((sub_47C050_t)0x0047C050)((float)v7);
 
                                     typedef int (__cdecl* lua_pushnumber_t)(uintptr_t, double);
-                                    ((lua_pushnumber_t)0x0084E2A0)(L, final_h);
+                                    ((lua_pushnumber_t)0x0084E2A0)(L, v7);
                                     return 1;
                                 }
                             }
