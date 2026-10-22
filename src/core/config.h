@@ -768,6 +768,7 @@ namespace Config {
         bool OptWmoGroupBounds = false;
         bool OptTextureGetGxTexFast = false;
         bool OptSceneAttachFast = false;
+        bool OptUiTextureVertexFast = false;
     };
 
     extern Settings g_settings;

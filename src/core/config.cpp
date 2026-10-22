@@ -288,6 +288,7 @@ static const BoolSetting kBoolSettings[] = {
     { "Graphics_Sound", "WmoGroupBounds", &Settings::OptWmoGroupBounds },
     { "Graphics_Sound", "TextureGetGxTexFast", &Settings::OptTextureGetGxTexFast },
     { "Graphics_Sound", "SceneAttachFast", &Settings::OptSceneAttachFast },
+    { "UI_Lua", "UiTextureVertexFast", &Settings::OptUiTextureVertexFast },
 };
 
 static const int kBoolSettingCount = (int)(sizeof(kBoolSettings) / sizeof(kBoolSettings[0]));
@@ -971,6 +972,7 @@ static const int kBoolSettingCount = (int)(sizeof(kBoolSettings) / sizeof(kBoolS
         g_settings.OptWmoGroupBounds       = GetPrivateProfileIntA("Graphics_Sound", "WmoGroupBounds", 0, iniPath.c_str()) != 0;
         g_settings.OptTextureGetGxTexFast  = GetPrivateProfileIntA("Graphics_Sound", "TextureGetGxTexFast", 0, iniPath.c_str()) != 0;
         g_settings.OptSceneAttachFast      = GetPrivateProfileIntA("Graphics_Sound", "SceneAttachFast", 0, iniPath.c_str()) != 0;
+        g_settings.OptUiTextureVertexFast  = GetPrivateProfileIntA("UI_Lua", "UiTextureVertexFast", 0, iniPath.c_str()) != 0;
     }
 }
 
