@@ -32,3 +32,4 @@ scratch/
 wow_opt.ini
 *.ini
 RELEASE_*.md
+launcher-localization.patch

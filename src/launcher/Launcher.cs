@@ -9,8 +9,199 @@ using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 using System.Reflection;
 using Microsoft.Win32;
+using System.Globalization;
 
 namespace WowOptimizeLauncher {
+
+    public enum UiLanguage
+    {
+        English,
+        Russian
+    }
+
+    public static class AppLocale
+    {
+        private static readonly Dictionary<string, Dictionary<string, string>> Strings =
+            new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase)
+            {
+                {
+                    "en", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["APP_TITLE"] = "WOW OPTIMIZE",
+                        ["AUTHOR"] = "by Suprematist",
+                        ["SUBTITLE"] = "MOD CONFIGURATOR & LAUNCHER",
+                        ["SET_ALL"] = "SET EVERYTHING AT ONCE",
+                        ["MAX_PERF"] = "MAX PERFORMANCE",
+                        ["DEFAULT"] = "DEFAULT",
+                        ["EVERYTHING_OFF"] = "EVERYTHING OFF",
+                        ["TRY_UNPROVEN"] = "TRY THE UNPROVEN ONES",
+                        ["WHEN_SOMETHING_WRONG"] = "WHEN SOMETHING IS WRONG",
+                        ["LOGGING_NORMAL"] = "LOGGING: NORMAL",
+                        ["LOGGING_FULL"] = "LOGGING: FULL",
+                        ["MOVE_CONFIG"] = "MOVE A CONFIGURATION",
+                        ["SAVE_PROFILE"] = "SAVE TO FILE...",
+                        ["LOAD_PROFILE"] = "LOAD FROM FILE...",
+                        ["COPY_FOR_DEV"] = "COPY FOR THE DEV",
+                        ["MODULE_STATUS"] = "MODULE STATUS:",
+                        ["READY"] = "READY",
+                        ["NOT_LOADED"] = "NOT LOADED",
+                        ["MAY_NOT_LOAD"] = "MAY NOT LOAD",
+                        ["ACTIVE_MODULES"] = "Active modules:",
+                        ["SEARCH"] = "Search:",
+                        ["HOVER"] = "Hover a switch to read what it does.",
+                        ["SPEED"] = "SPEED",
+                        ["NOT_PROVEN"] = "NOT PROVEN",
+                        ["FIXES_COMPAT"] = "FIXES & COMPAT",
+                        ["LOOK_SOUND"] = "LOOK & SOUND",
+                        ["DIAGNOSTICS"] = "DIAGNOSTICS",
+                        ["DIDNT_HELP"] = "DIDN'T HELP",
+                        ["LAUNCH"] = "LAUNCH WOW",
+                        ["EXIT"] = "EXIT LAUNCHER",
+                        ["LANGUAGE"] = "Language",
+                        ["ENGLISH"] = "English",
+                        ["RUSSIAN"] = "Русский",
+                        ["LOG_FOLDER"] = "The log is Logs\\wow_optimize.log, crash dumps are in\r\nCrashes\\. Click ... for a different folder.",
+                        ["LOG_FOLDER_CUSTOM"] = "Logs and crash dumps go to\r\n{0}. Double-click to reset.",
+                        ["ON"] = "On",
+                        ["OFF"] = "Off",
+                        ["PROFILE_SAVED_TITLE"] = "Profile saved",
+                        ["PROFILE_SAVED_MSG"] = "Saved to:\n{0}",
+                        ["PROFILE_LOADED_TITLE"] = "Profile loaded",
+                        ["PROFILE_LOADED_MSG"] = "Loaded from:\n{0}",
+                        ["PROFILE_COPY_TITLE"] = "Copied",
+                        ["PROFILE_COPY_MSG"] = "On the clipboard. Paste it with the log file - Logs\\wow_optimize.log - so the switches and what happened can be read together.",
+                        ["PROFILE_COPY_ERR"] = "Could not copy: {0}",
+                        ["ERROR"] = "Error",
+                        ["LOGGING_TITLE"] = "Logging",
+                        ["LOGGING_MSG"] = "Logging {0}: {1} recording switch(es) {2}.\r\n\r\nEvery switch under the LOGGING and DIAGNOSTICS tabs except four: the A/B test (it flips features while you play), No Client Patches (it removes the patches), Lock Spin Counts (it changes how locks wait) and Addon CPU Profiler (the client's own script profiler, which costs more than everything else here; Addon CPU by Sampling answers the same question).\r\n\r\nSaved.",
+                        ["MAX_PERF_TITLE"] = "Max Performance",
+                        ["MAX_PERF_MSG"] = "{0} features on, {1} off.\r\n\r\nOn: every proven switch that can make the game faster.\r\n\r\n{2} switches nobody has proven in a game yet were left at their own default. TRY THE UNPROVEN ONES turns them on for a test session. If the game misbehaves, press EVERYTHING OFF first, then DEFAULT, and send the log.\r\n\r\nOff: everything that only measures the game; the ones that buy frames by changing how it looks or sounds; the ones measured against the client and beaten; the frame limiter override; the Critical Section Hook, which stops a player running ReShade from entering the world and has no measured gain; the collision tree walks, which nothing checks against the game while you play and which are suspected of a camera that kept resetting; and No Client Patches, which turns every optimization off.\r\n\r\nSaved. Launch when ready.",
+                        ["TRY_UNPROVEN_TITLE"] = "Try the unproven ones",
+                        ["TRY_UNPROVEN_MSG"] = "Test session is set up. {0} switches on: {1} unproven replacements and the rest of MAX PERFORMANCE, {2} recording switches, and the A/B test.\r\n\r\nNothing else to tick. Launch, play somewhere busy (a city, a dungeon or a raid) for at least 45 minutes, and quit normally. Then send Logs\\wow_optimize.log, and any wow_crash file if the game crashed.\r\n\r\n{3} of the replacements are under investigation for a crash or an addon error. That is why this session exists. If the game crashes, that is the answer - send the log and the crash file. It will be slower than usual while recording, so do not judge FPS by feel.\r\n\r\n{4} switches stay off on purpose: the whole LOOK & SOUND tab, the options at the bottom of FIXES & COMPAT (frame limiter override, Critical Section Hook, Compatibility Mode, No Client Patches), DIDN'T HELP, the measuring switches that are not part of recording, and the group at the bottom of NOT PROVEN that is under investigation. Each tab says so on its first line. Press DEFAULT afterwards to go back to normal.\r\n\r\nSaved.",
+                        ["MSG_LAUNCH_FAIL_TITLE"] = "Execution Error",
+                        ["MSG_LAUNCH_FAIL"] = "Failed to launch {0}: {1}",
+                        ["MSG_LAUNCH_MISSING"] = "Could not find wow.exe, Arden.exe, Ascension.exe, or another valid game executable in the current directory: {0}\n\nPlease place the launcher in your World of Warcraft folder and start it from there.",
+                        ["MSG_FATAL_TITLE"] = "Fatal Error",
+                        ["MSG_FATAL_BODY"] = "Fatal launcher error:\n{0}\n\nDetails saved to launcher_crash.txt",
+                        ["MSG_LOAD_CFG_ERROR"] = "Error loading config profile: {0}",
+                        ["MSG_SAVE_CFG_ERROR"] = "Error saving config profile: {0}",
+                        ["STATUS_FOLDER_TOOLTIP"] = "Folder: {0}",
+                        ["VERSION_UPDATE"] = "UPDATE AVAILABLE: v{0}",
+                        ["VERSION_TOOLTIP"] = "Click to open GitHub releases page for upgrade!",
+                        ["FILE_BROWSER_LOG_FOLDER"] = "Folder for wow_optimize's logs. A Crashes folder for dumps is created inside it.",
+                        ["TOOLTIP_MAX_PERF"] = "Every proven switch that can make the game faster, on. The replacements nobody has proven in a game yet stay at their own default; TRY THE UNPROVEN ONES is the button that turns them on.\r\n\r\nOff: everything that only measures the game, the ones that buy frames by changing how it looks or sounds, the ones measured and beaten by the client and the ones that do nothing in this build, the frame limiter override, the Critical Section Hook (it breaks ReShade) and No Client Patches (it turns every optimization off). If the game misbehaves, press EVERYTHING OFF, then DEFAULT.",
+                        ["TOOLTIP_DEFAULT"] = "Back to what a fresh install runs: the features that are on for everyone, and nothing else.",
+                        ["TOOLTIP_LOGGING"] = "Every switch under the LOGGING and DIAGNOSTICS tabs except four: the A/B test, No Client Patches, Lock Spin Counts and Addon CPU Profiler. That is what LOGGING: FULL turns on, and the recorded log is what you send back."
+                    }
+                },
+                {
+                    "ru", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["APP_TITLE"] = "WOW OPTIMIZE",
+                        ["AUTHOR"] = "от Suprematist",
+                        ["SUBTITLE"] = "КОНФИГУРАТОР МОДОВ И ЛАУНЧЕР",
+                        ["SET_ALL"] = "ВСЁ СРАЗУ",
+                        ["MAX_PERF"] = "МАКС. ПРОИЗВОДИТЕЛЬНОСТЬ",
+                        ["DEFAULT"] = "ПО УМОЛЧАНИЮ",
+                        ["EVERYTHING_OFF"] = "ВСЁ ВЫКЛЮЧЕНО",
+                        ["TRY_UNPROVEN"] = "ПРОБОВАТЬ НЕПРОВЕРЕННОЕ",
+                        ["WHEN_SOMETHING_WRONG"] = "КОГДА ЧТО-ТО НЕ ТАК",
+                        ["LOGGING_NORMAL"] = "ЛОГИРОВАНИЕ: НОРМАЛЬНО",
+                        ["LOGGING_FULL"] = "ЛОГИРОВАНИЕ: ПОЛНОЕ",
+                        ["MOVE_CONFIG"] = "ПЕРЕСТАВИТЬ КОНФИГУРАЦИЮ",
+                        ["SAVE_PROFILE"] = "СОХРАНИТЬ В ФАЙЛ...",
+                        ["LOAD_PROFILE"] = "ЗАГРУЗИТЬ ИЗ ФАЙЛА...",
+                        ["COPY_FOR_DEV"] = "СКОПИРОВАТЬ ДЛЯ РАЗРАБ.",
+                        ["MODULE_STATUS"] = "СТАТУС МОДУЛЕЙ:",
+                        ["READY"] = "ГОТОВО",
+                        ["NOT_LOADED"] = "НЕ ЗАГРУЖЕНО",
+                        ["MAY_NOT_LOAD"] = "МОЖЕТ НЕ ЗАГРУЗИТЬСЯ",
+                        ["ACTIVE_MODULES"] = "Активные модули:",
+                        ["SEARCH"] = "Поиск:",
+                        ["HOVER"] = "Наведи курсор на переключатель, чтобы узнать, что он делает.",
+                        ["SPEED"] = "СКОРОСТЬ",
+                        ["NOT_PROVEN"] = "НЕ ПРОВЕРЕНО",
+                        ["FIXES_COMPAT"] = "ИСПРАВЛЕНИЯ И СОВМЕСТИМОСТЬ",
+                        ["LOOK_SOUND"] = "ВИД И ЗВУК",
+                        ["DIAGNOSTICS"] = "ДИАГНОСТИКА",
+                        ["DIDNT_HELP"] = "НЕ ПОМОГЛО",
+                        ["LAUNCH"] = "ЗАПУСТИТЬ WOW",
+                        ["EXIT"] = "ВЫХОД ИЗ ЛАУНЧЕРА",
+                        ["LANGUAGE"] = "Язык",
+                        ["ENGLISH"] = "English",
+                        ["RUSSIAN"] = "Русский",
+                        ["LOG_FOLDER"] = "Лог находится в Logs\\wow_optimize.log, дампы падений — в\r\nCrashes\\. Нажмите ... для выбора другой папки.",
+                        ["LOG_FOLDER_CUSTOM"] = "Логи и дампы падений сохраняются в\r\n{0}. Дважды щёлкните, чтобы сбросить.",
+                        ["ON"] = "Вкл",
+                        ["OFF"] = "Выкл",
+                        ["PROFILE_SAVED_TITLE"] = "Профиль сохранён",
+                        ["PROFILE_SAVED_MSG"] = "Сохранено в:\n{0}",
+                        ["PROFILE_LOADED_TITLE"] = "Профиль загружен",
+                        ["PROFILE_LOADED_MSG"] = "Загружено из:\n{0}",
+                        ["PROFILE_COPY_TITLE"] = "Скопировано",
+                        ["PROFILE_COPY_MSG"] = "В буфере обмена. Вставьте вместе с логом - Logs\\wow_optimize.log - чтобы переключатели и произошедшее можно было прочитать вместе.",
+                        ["PROFILE_COPY_ERR"] = "Не удалось скопировать: {0}",
+                        ["ERROR"] = "Ошибка",
+                        ["LOGGING_TITLE"] = "Логирование",
+                        ["LOGGING_MSG"] = "Логирование {0}: {1} переключатель(ей) {2}.\r\n\r\nВсе переключатели на вкладках ЛОГИРОВАНИЕ и ДИАГНОСТИКА, кроме четырёх: A/B тест (меняет функции во время игры), No Client Patches (убирает патчи), Lock Spin Counts (изменяет ожидание блокировок) и Addon CPU Profiler (собственный профайлер скриптов клиента, он дороже всего остального; Addon CPU by Sampling отвечает на тот же вопрос).\r\n\r\nСохранено.",
+                        ["MAX_PERF_TITLE"] = "Макс. производительность",
+                        ["MAX_PERF_MSG"] = "{0} функций включено, {1} выключено.\r\n\r\nВкл: все проверенные переключатели, которые могут ускорить игру.\r\n\r\n{2} переключателей, которые никто не проверил в игре, оставлены по умолчанию. Кнопка «ПРОБОВАТЬ НЕПРОВЕРЕННОЕ» включает их в тестовом сеансе. Если игра ведёт себя нестабильно, сначала нажмите «ВСЁ ВЫКЛЮЧЕНО», затем «ПО УМОЛЧАНИЮ» и отправьте лог.\r\n\r\nВыкл: всё, что лишь измеряет игру; переключатели, увеличивающие кадры за счёт внешнего вида или звука; те, что были проверены и проиграли; переопределение ограничителя кадров; Critical Section Hook, который мешает ReShade заходить в мир и не даёт измеримого выигрыша; обходы дерева коллизий, которые никто не проверяет во время игры и которые подозреваются в сбросе камеры; и No Client Patches, которое выключает все оптимизации.\r\n\r\nСохранено. Запускайте, когда будете готовы.",
+                        ["TRY_UNPROVEN_TITLE"] = "Проверить непроверенное",
+                        ["TRY_UNPROVEN_MSG"] = "Тестовый сеанс настроен. {0} переключателей включено: {1} непроверенных замен и остальное в рамках «МАКС. ПРОИЗВОДИТЕЛЬНОСТЬ», {2} переключателей записи и A/B тест.\r\n\r\nБольше ничего не нужно отмечать. Запустите игру, проведите в городе, подземелье или рейде не меньше 45 минут и завершите игру нормально. Затем отправьте Logs\\wow_optimize.log и, если игра падала, любой wow_crash-файл.\r\n\r\n{3} замен находятся под расследованием из-за падений или ошибок аддонов. Именно ради этого и нужен этот сеанс. Если игра падает, это ответ — отправьте лог и файл падения. Во время записи она будет работать медленнее обычного, поэтому не оценивайте FPS по ощущениям.\r\n\r\n{4} переключателей остаются выключенными специально: вся вкладка «ВИД И ЗВУК», параметры внизу «ИСПРАВЛЕНИЯ И СОВМЕСТИМОСТЬ» (переопределение ограничителя кадров, Critical Section Hook, Compatibility Mode, No Client Patches), «НЕ ПОМОГЛО», переключатели измерения, не относящиеся к записи, и группа внизу «НЕ ПРОВЕРЕНО», находящаяся под расследованием. Об этом написано в первой строке каждой вкладки. Нажмите «ПО УМОЛЧАНИЮ», чтобы вернуться к норме.\r\n\r\nСохранено.",
+                        ["MSG_LAUNCH_FAIL_TITLE"] = "Ошибка запуска",
+                        ["MSG_LAUNCH_FAIL"] = "Не удалось запустить {0}: {1}",
+                        ["MSG_LAUNCH_MISSING"] = "Не удалось найти wow.exe, Arden.exe, Ascension.exe или другой допустимый исполняемый файл игры в текущей директории: {0}\n\nПоместите лаунчер в папку World of Warcraft и запускайте его оттуда.",
+                        ["MSG_FATAL_TITLE"] = "Критическая ошибка",
+                        ["MSG_FATAL_BODY"] = "Критическая ошибка лаунчера:\n{0}\n\nПодробности сохранены в launcher_crash.txt",
+                        ["MSG_LOAD_CFG_ERROR"] = "Ошибка загрузки профиля: {0}",
+                        ["MSG_SAVE_CFG_ERROR"] = "Ошибка сохранения профиля: {0}",
+                        ["STATUS_FOLDER_TOOLTIP"] = "Папка: {0}",
+                        ["VERSION_UPDATE"] = "ДОСТУПНО ОБНОВЛЕНИЕ: v{0}",
+                        ["VERSION_TOOLTIP"] = "Нажмите, чтобы открыть страницу релизов GitHub и обновиться!",
+                        ["FILE_BROWSER_LOG_FOLDER"] = "Папка для логов wow_optimize. Внутри неё создаётся папка Crashes для дампов.",
+                        ["TOOLTIP_MAX_PERF"] = "Все проверенные переключатели, ускоряющие игру, включены. Замены, которые никто не проверил в игре, остаются по умолчанию; «ПРОБОВАТЬ НЕПРОВЕРЕННОЕ» включает их.\r\n\r\nВыкл: всё, что лишь измеряет игру, переключатели, добавляющие кадры за счёт внешнего вида или звука, те, что были измерены и проиграли клиенту или ничего не делают в этой сборке, переопределение ограничителя кадров, Critical Section Hook (ломает ReShade) и No Client Patches (выключает все оптимизации). Если игра ведёт себя нестабильно, нажмите «ВСЁ ВЫКЛЮЧЕНО», затем «ПО УМОЛЧАНИЮ».",
+                        ["TOOLTIP_DEFAULT"] = "Назад к тому, что запускает свежая установка: функции, включённые для всех, и ничего больше.",
+                        ["TOOLTIP_LOGGING"] = "Все переключатели на вкладках ЛОГИРОВАНИЕ и ДИАГНОСТИКА, кроме четырёх: A/B теста, No Client Patches, Lock Spin Counts и Addon CPU Profiler. Именно это включает режим ЛОГИРОВАНИЕ: ПОЛНОЕ, и затем вы отправляете этот лог обратно."
+                    }
+                }
+            };
+
+        public static UiLanguage DetectLanguage()
+        {
+            string code = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+            return string.Equals(code, "ru", StringComparison.OrdinalIgnoreCase) ? UiLanguage.Russian : UiLanguage.English;
+        }
+
+        public static string Get(string key, UiLanguage language)
+        {
+            if (string.IsNullOrEmpty(key)) return string.Empty;
+            string lang = language == UiLanguage.Russian ? "ru" : "en";
+            if (!Strings.TryGetValue(lang, out var values))
+            {
+                values = Strings["en"];
+            }
+            if (!values.TryGetValue(key, out var text))
+            {
+                if (lang != "en" && Strings.TryGetValue("en", out var english) && english.TryGetValue(key, out var fallback))
+                {
+                    return fallback;
+                }
+                return key;
+            }
+            return text;
+        }
+
+        public static string T(string key, UiLanguage language)
+        {
+            return Get(key, language);
+        }
+
+        public static string T(string key)
+        {
+            return Get(key, DetectLanguage());
+        }
+    }
+
 
 
     // ───────────────────────────────────────────────────────────────
@@ -559,6 +750,9 @@ namespace WowOptimizeLauncher {
         private DoubleBufferedPanel progressBarPanel;
         private DarkTabControl tabs;
         private ToolTip toolTip;
+        private UiLanguage currentLanguage = UiLanguage.English;
+        private readonly List<KeyValuePair<Control, string>> localizableControls = new List<KeyValuePair<Control, string>>();
+        private ComboBox languageComboBox;
 
         // A folder for wow_optimize's own logs and crash dumps, in place of Logs\ and
         // Crashes\ beside the game. Empty means the default, unchanged layout. Not a
@@ -598,6 +792,30 @@ namespace WowOptimizeLauncher {
         private static readonly Color SeparatorColor = Color.FromArgb(30, 30, 45);
         private static readonly Color SubtextColor = Color.FromArgb(150, 150, 180);
         private static readonly Color SubHeaderColor = Color.FromArgb(150, 150, 180);
+
+        private string T(string key) {
+            return AppLocale.T(key, currentLanguage);
+        }
+
+        private void RegisterUiText(Control control, string key) {
+            if (control == null) return;
+            localizableControls.Add(new KeyValuePair<Control, string>(control, key));
+            control.Text = AppLocale.T(key, currentLanguage);
+        }
+
+        private void ApplyLanguage() {
+            foreach (var pair in localizableControls) {
+                pair.Key.Text = AppLocale.T(pair.Value, currentLanguage);
+            }
+            if (languageComboBox != null) {
+                languageComboBox.SelectedIndex = currentLanguage == UiLanguage.Russian ? 1 : 0;
+            }
+        }
+
+        private void SetLanguage(UiLanguage language) {
+            currentLanguage = language;
+            ApplyLanguage();
+        }
 
         // Must agree with Config::ResolveIniPath in src/core/config.cpp. The two
         // used to be written separately and only matched because the install
@@ -715,6 +933,7 @@ namespace WowOptimizeLauncher {
         public MainForm() {
             // Setup Paths
             iniPath = ResolveIniPath();
+            currentLanguage = AppLocale.DetectLanguage();
 
             // Tooltip component
             toolTip = new ToolTip();
@@ -997,6 +1216,8 @@ namespace WowOptimizeLauncher {
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
                      ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
 
+            currentLanguage = AppLocale.DetectLanguage();
+
             // Load background image
             LoadBackgroundImage();
 
@@ -1126,7 +1347,7 @@ namespace WowOptimizeLauncher {
 
             // Title
             Label headerLabel = new Label();
-            headerLabel.Text = "WOW OPTIMIZE";
+            RegisterUiText(headerLabel, "APP_TITLE");
             headerLabel.Font = new Font("Segoe UI", 18f, FontStyle.Bold);
             headerLabel.ForeColor = CyanAccent;
             headerLabel.AutoSize = true;
@@ -1137,7 +1358,7 @@ namespace WowOptimizeLauncher {
 
             // Dev subtitle
             Label devLabel = new Label();
-            devLabel.Text = "by Suprematist";
+            RegisterUiText(devLabel, "AUTHOR");
             devLabel.Font = new Font("Segoe UI", 8.5f, FontStyle.Italic);
             devLabel.ForeColor = CyanAccent;
             devLabel.AutoSize = true;
@@ -1148,7 +1369,7 @@ namespace WowOptimizeLauncher {
 
             // Subheader
             Label subHeaderLabel = new Label();
-            subHeaderLabel.Text = "MOD CONFIGURATOR & LAUNCHER";
+            RegisterUiText(subHeaderLabel, "SUBTITLE");
             // Same reason the tab strip needed NoPrefix: a Label eats & as a
             // mnemonic and underlines what follows, so this read CONFIGURATOR
             // with a gap where the ampersand should be.
@@ -1160,6 +1381,28 @@ namespace WowOptimizeLauncher {
             subHeaderLabel.BackColor = Color.Transparent;
             leftPanel.Controls.Add(subHeaderLabel);
             y += subHeaderLabel.PreferredHeight + 18;
+
+            Label languageLabel = new Label();
+            RegisterUiText(languageLabel, "LANGUAGE");
+            languageLabel.Font = new Font("Segoe UI", 7.5f, FontStyle.Bold);
+            languageLabel.ForeColor = SubHeaderColor;
+            languageLabel.AutoSize = true;
+            languageLabel.Location = new Point(17, y);
+            languageLabel.BackColor = Color.Transparent;
+            leftPanel.Controls.Add(languageLabel);
+
+            languageComboBox = new ComboBox();
+            languageComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+            languageComboBox.Items.Add("English");
+            languageComboBox.Items.Add("Русский");
+            languageComboBox.SelectedIndex = currentLanguage == UiLanguage.Russian ? 1 : 0;
+            languageComboBox.Location = new Point(110, y - 2);
+            languageComboBox.Size = new Size(90, 24);
+            languageComboBox.SelectedIndexChanged += delegate {
+                SetLanguage(languageComboBox.SelectedIndex == 1 ? UiLanguage.Russian : UiLanguage.English);
+            };
+            leftPanel.Controls.Add(languageComboBox);
+            y += 26;
 
             // ── Actions ────────────────────────────────────────
             //
@@ -1175,10 +1418,10 @@ namespace WowOptimizeLauncher {
             // still a checkbox on the right.
             int btnWidth = 248;
 
-            y += AddSectionLabel(leftPanel, "SET EVERYTHING AT ONCE", y);
+            y += AddSectionLabel(leftPanel, T("SET_ALL"), y);
 
             DarkButton btnMaxPerf = new DarkButton(Color.FromArgb(255, 170, 0), false);
-            btnMaxPerf.Text = "MAX PERFORMANCE";
+            btnMaxPerf.Text = T("MAX_PERF");
             btnMaxPerf.Size = new Size(btnWidth, 32);
             btnMaxPerf.Location = new Point(15, y);
             btnMaxPerf.Click += delegate { SetUpMaxPerformance(); };
@@ -1198,7 +1441,7 @@ namespace WowOptimizeLauncher {
             y += 38;
 
             DarkButton btnDefaults = new DarkButton(Color.FromArgb(120, 132, 160), false);
-            btnDefaults.Text = "DEFAULT";
+            btnDefaults.Text = T("DEFAULT");
             btnDefaults.Size = new Size(btnWidth, 32);
             btnDefaults.Location = new Point(15, y);
             btnDefaults.Click += delegate { RestoreDefaults(); };
@@ -1209,7 +1452,7 @@ namespace WowOptimizeLauncher {
             y += 38;
 
             DarkButton btnVanilla = new DarkButton(Color.FromArgb(255, 23, 68), false);
-            btnVanilla.Text = "EVERYTHING OFF";
+            btnVanilla.Text = T("EVERYTHING_OFF");
             btnVanilla.Size = new Size(btnWidth, 32);
             btnVanilla.Location = new Point(15, y);
             btnVanilla.Click += delegate { TurnEverythingOff(); };
@@ -1221,7 +1464,7 @@ namespace WowOptimizeLauncher {
             y += 38;
 
             DarkButton btnProve = new DarkButton(Color.FromArgb(0, 200, 140), false);
-            btnProve.Text = "TRY THE UNPROVEN ONES";
+            btnProve.Text = T("TRY_UNPROVEN");
             btnProve.Size = new Size(btnWidth, 32);
             btnProve.Location = new Point(15, y);
             btnProve.Click += delegate { SetUpProvingRun(); };
@@ -1248,7 +1491,7 @@ namespace WowOptimizeLauncher {
             leftPanel.Controls.Add(btnProve);
             y += 40;
 
-            y += AddSectionLabel(leftPanel, "WHEN SOMETHING IS WRONG", y);
+            y += AddSectionLabel(leftPanel, T("WHEN_SOMETHING_WRONG"), y);
 
             btnLogging = new DarkButton(Color.FromArgb(160, 120, 220), false);
             btnLogging.Size = new Size(btnWidth, 32);
@@ -1269,7 +1512,7 @@ namespace WowOptimizeLauncher {
             leftPanel.Controls.Add(btnLogging);
             y += 40;
 
-            y += AddSectionLabel(leftPanel, "MOVE A CONFIGURATION", y);
+            y += AddSectionLabel(leftPanel, T("MOVE_CONFIG"), y);
 
             DarkButton btnSaveProfile = new DarkButton(CyanAccent, false);
             btnSaveProfile.Text = "SAVE TO FILE...";
@@ -1321,7 +1564,7 @@ namespace WowOptimizeLauncher {
             };
 
             Label statusTitle = new Label();
-            statusTitle.Text = "MODULE STATUS:";
+            statusTitle.Text = T("MODULE_STATUS");
             statusTitle.Font = new Font("Segoe UI", 7.5f, FontStyle.Bold);
             statusTitle.ForeColor = Color.FromArgb(140, 140, 170);
             statusTitle.AutoSize = true;
@@ -1373,9 +1616,9 @@ namespace WowOptimizeLauncher {
             // The headline is one or two words so it never runs past the card;
             // the reason goes on the line below, where it can wrap.
             string statusText;
-            if (dllActive && compatLayers != null) statusText = "MAY NOT LOAD";
-            else if (dllActive) statusText = "READY";
-            else statusText = "NOT LOADED";
+            if (dllActive && compatLayers != null) statusText = T("MAY_NOT_LOAD");
+            else if (dllActive) statusText = T("READY");
+            else statusText = T("NOT_LOADED");
 
             Label statusVal = new Label();
             statusVal.Text = statusText;
@@ -1536,7 +1779,7 @@ namespace WowOptimizeLauncher {
             // it had dropped the group headings; the headings now stay during a
             // search, so there is nothing left for a legend to decode.
             Label tipLabel = new Label();
-            tipLabel.Text = "Hover a switch to read what it does.";
+            tipLabel.Text = T("HOVER");
             tipLabel.Font = new Font("Segoe UI", 8.5f, FontStyle.Regular);
             tipLabel.ForeColor = Color.FromArgb(130, 142, 158);
             tipLabel.AutoSize = true;
@@ -2069,7 +2312,7 @@ namespace WowOptimizeLauncher {
 
         private void UpdateLoggingButton() {
             if (btnLogging == null) return;
-            btnLogging.Text = FullLoggingOn() ? "LOGGING: FULL" : "LOGGING: NORMAL";
+            btnLogging.Text = FullLoggingOn() ? T("LOGGING_FULL") : T("LOGGING_NORMAL");
         }
 
         // Every switch off. The one direction that is always safe, and the first
@@ -2094,8 +2337,11 @@ namespace WowOptimizeLauncher {
             sfd.Title = "Save Configuration Profile";
             if (sfd.ShowDialog() == DialogResult.OK) {
                 SaveSettingsToPath(sfd.FileName);
-                MessageBox.Show("Saved to:\n" + sfd.FileName, "Profile saved",
-                                MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(
+                    string.Format(T("PROFILE_SAVED_MSG"), sfd.FileName),
+                    T("PROFILE_SAVED_TITLE"),
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
             }
         }
 
@@ -2105,8 +2351,11 @@ namespace WowOptimizeLauncher {
             ofd.Title = "Load Configuration Profile";
             if (ofd.ShowDialog() == DialogResult.OK) {
                 LoadSettingsFromPath(ofd.FileName);
-                MessageBox.Show("Loaded from:\n" + ofd.FileName, "Profile loaded",
-                                MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(
+                    string.Format(T("PROFILE_LOADED_MSG"), ofd.FileName),
+                    T("PROFILE_LOADED_TITLE"),
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
             }
         }
 
@@ -2137,8 +2386,11 @@ namespace WowOptimizeLauncher {
                     + "together.",
                     "Copied", MessageBoxButtons.OK, MessageBoxIcon.Information);
             } catch (Exception ex) {
-                MessageBox.Show("Could not copy: " + ex.Message, "Error",
-                                MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(
+                    string.Format(T("PROFILE_COPY_ERR"), ex.Message),
+                    T("ERROR"),
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
             }
         }
 
@@ -2375,11 +2627,11 @@ namespace WowOptimizeLauncher {
         private void UpdateLogFolderLabel() {
             if (logFolderLabel == null) return;
             if (string.IsNullOrEmpty(logFolderValue)) {
-                logFolderLabel.Text = "The log is Logs\\wow_optimize.log, crash dumps are in\r\nCrashes\\. Click ... for a different folder.";
+                logFolderLabel.Text = T("LOG_FOLDER");
             } else {
                 string shown = logFolderValue;
                 if (shown.Length > 34) shown = shown.Substring(0, 8) + "..." + shown.Substring(shown.Length - 20);
-                logFolderLabel.Text = "Logs and crash dumps go to\r\n" + shown + ". Double-click to reset.";
+                logFolderLabel.Text = string.Format(T("LOG_FOLDER_CUSTOM"), shown);
             }
         }
 
@@ -2439,7 +2691,11 @@ namespace WowOptimizeLauncher {
                 ApplyInheritedDefaults(currentSettings);
                 UpdateActiveModulesCount();
             } catch (Exception ex) {
-                MessageBox.Show("Error loading config profile: " + ex.Message, "Load Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(
+                    string.Format(T("MSG_LOAD_CFG_ERROR"), ex.Message),
+                    T("ERROR"),
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
                 RestoreDefaults();
             } finally {
                 _suppressAutoSave = false;
@@ -2647,7 +2903,11 @@ namespace WowOptimizeLauncher {
                     }
                 }
             } catch (Exception ex) {
-                MessageBox.Show("Error saving config profile: " + ex.Message, "Save Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(
+                    string.Format(T("MSG_SAVE_CFG_ERROR"), ex.Message),
+                    T("ERROR"),
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
             }
         }
 
@@ -2747,7 +3007,11 @@ namespace WowOptimizeLauncher {
             }
 
             if (!File.Exists(wowPath)) {
-                MessageBox.Show("Could not find wow.exe, Arden.exe, Ascension.exe, or another valid game executable in the current directory: " + exeDir + "\n\nPlease place the launcher in your World of Warcraft directory.", "Execution Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(
+                    string.Format(T("MSG_LAUNCH_MISSING"), exeDir),
+                    T("MSG_LAUNCH_FAIL_TITLE"),
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
                 return;
             }
 
@@ -2760,7 +3024,11 @@ namespace WowOptimizeLauncher {
                 // Exit launcher on launch
                 Close();
             } catch (Exception ex) {
-                MessageBox.Show("Failed to launch " + Path.GetFileName(wowPath) + ": " + ex.Message, "Execution Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(
+                    string.Format(T("MSG_LAUNCH_FAIL"), Path.GetFileName(wowPath), ex.Message),
+                    T("MSG_LAUNCH_FAIL_TITLE"),
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
             }
         }
 
@@ -2802,7 +3070,11 @@ namespace WowOptimizeLauncher {
                 } catch {
                     // Ignore secondary logging failures
                 }
-                MessageBox.Show("Fatal launcher error:\n" + ex.Message + "\n\nDetails saved to launcher_crash.txt", "Fatal Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(
+                    string.Format(AppLocale.T("MSG_FATAL_BODY"), ex.Message),
+                    AppLocale.T("MSG_FATAL_TITLE"),
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
             }
         }
     }
