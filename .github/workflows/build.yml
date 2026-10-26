@@ -1,0 +1,66 @@
+name: Build (artifacts only, no release)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # DLLs and wow_loader.exe: 32-bit (Win32), static CRT, as in build.bat.
+      # build.bat asks for "Visual Studio 18 2026"; the hosted runner has VS 2022.
+      # CMAKE_POLICY_VERSION_MINIMUM guards against CMake 4.x rejecting the old
+      # cmake_minimum_required of the fetched dependencies.
+      - name: Configure (Win32)
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A Win32 -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+
+      - name: Build Release (wow_optimize.dll, version.dll, wow_loader.exe)
+        run: cmake --build build --config Release --parallel
+
+      # Launcher: same csc.exe call as step [4/4] of build.bat.
+      # cmd is used on purpose: PowerShell would split the comma in /resource:.
+      - name: Build launcher (wow_optimize_launcher.exe)
+        shell: cmd
+        run: |
+          set FW=C:\Windows\Microsoft.NET\Framework\v4.0.30319
+          "%FW%\csc.exe" /noconfig /nowarn:1701,1702 /nostdlib+ /warn:4 /define:TRACE ^
+            /reference:"%FW%\mscorlib.dll" ^
+            /reference:"%FW%\System.Core.dll" ^
+            /reference:"%FW%\System.dll" ^
+            /reference:"%FW%\System.Drawing.dll" ^
+            /reference:"%FW%\System.Windows.Forms.dll" ^
+            /resource:src\launcher\wotlk_background.jpg,wotlk_background.jpg ^
+            /target:winexe ^
+            /out:build\Release\wow_optimize_launcher.exe ^
+            src\launcher\Launcher.cs
+          if errorlevel 1 exit /b 1
+          copy /y src\launcher\wotlk_background.jpg build\Release\wotlk_background.jpg
+
+      - name: Check outputs
+        shell: pwsh
+        run: |
+          $files = 'wow_optimize.dll','version.dll','wow_loader.exe','wow_optimize_launcher.exe'
+          $missing = $files | Where-Object { -not (Test-Path "build/Release/$_") }
+          Get-ChildItem build/Release | Select-Object Name, Length | Format-Table
+          if ($missing) { throw "Missing build outputs: $($missing -join ', ')" }
+
+      # Artifact only: nothing is published to Releases.
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wow-optimize-${{ github.sha }}
+          path: |
+            build/Release/wow_optimize.dll
+            build/Release/version.dll
+            build/Release/wow_loader.exe
+            build/Release/wow_optimize_launcher.exe
+            build/Release/wow_optimize.sym
+            build/Release/wotlk_background.jpg
+          if-no-files-found: error
+          retention-days: 14
