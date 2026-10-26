@@ -19,7 +19,8 @@ jobs:
       # Same generator as build.bat. CMAKE_POLICY_VERSION_MINIMUM guards against
       # CMake 4.x rejecting the old cmake_minimum_required of the fetched dependencies.
       - name: Configure (Win32)
-        run: cmake -S . -B build -G "Visual Studio 18 2026" -A Win32 -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+        # The -D argument is quoted: PowerShell splits an unquoted 3.5 at the dot.
+        run: cmake -S . -B build -G "Visual Studio 18 2026" -A Win32 "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 
       - name: Build Release (wow_optimize.dll, version.dll)
         run: cmake --build build --config Release --parallel
